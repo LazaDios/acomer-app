@@ -5,22 +5,22 @@ import { AuthContext } from '../contexts/AuthContext';
 import { styles } from '../styles/AppStyles';
 
 // Importación de Pantallas y Navegadores
-import LoginScreen from '../screens/Auth/LoginScreen';
+import {LoginScreen} from '../screens/Auth/LoginScreen';
 // Rutas explícitas con .jsx para evitar el error de resolución
-import AdminNavigator from './AdminNavigator.jsx';       
-import CamareroNavigator from './CamareroNavigator.jsx'; 
-import MesoneroNavigator from './MesoneroNavigator.jsx'; 
+import {AdminNavigator} from './AdminNavigator.jsx';       
+import {CocineroNavigator} from './CocineroNavigator.jsx'; 
+import {MesoneroNavigator} from './MesoneroNavigator.jsx'; 
 
 const Stack = createNativeStackNavigator();
 
 // Mapeo de roles de la API a nombres de pantalla
 const ROLE_SCREENS = {
   'administrador': 'AdminNavigator', 
-  'cocinero': 'CamareroNavigator', 
+  'cocinero': 'CocineroNavigator', 
   'mesonero': 'MesoneroNavigator',
 };
 
-const AppNavigator = () => {
+export const AppNavigator = () => {
   const { userToken, userRole, isLoading } = useContext(AuthContext);
 
   if (isLoading) {
@@ -38,7 +38,7 @@ const AppNavigator = () => {
       case 'administrador':
         return AdminNavigator;
       case 'cocinero':
-        return CamareroNavigator;
+        return CocineroNavigator;
       case 'mesonero':
         return MesoneroNavigator;
       default:
@@ -64,5 +64,3 @@ const AppNavigator = () => {
     </Stack.Navigator>
   );
 };
-
-export default AppNavigator;

@@ -168,35 +168,35 @@ export const ProductManagementScreen = ({ navigation }) => {
     );
   };
   
-  const renderProduct = ({ item }) => {
-    const price = parseFloat(item.precio_producto) || 0; 
-    
-    return (
-      <View style={styles.productAuditCard}> 
-        <View style={styles.productAuditInfo}>
-          <Text style={styles.productName}>{item.nombre_producto}</Text> 
-          <Text style={styles.productDetails}>${price.toFixed(2)}</Text> 
-          {/* SE HA ELIMINADO LA LECTURA DE CATEGORY */}
-        </View>
-        <View style={styles.productAuditActions}>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: '#007bff' }]}
-            onPress={() => navigation.navigate('ProductForm', { productToEdit: item })}
-          >
-            <MaterialIcons name="edit" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: '#dc3545', marginLeft: 10 }]}
-            onPress={() => deleteProduct(item.id_producto, item.nombre_producto)}
-          >
-            <MaterialIcons name="delete" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
+const renderProduct = ({ item }) => {
+        const price = parseFloat(item.precio_producto) || 0; 
+        
+        // Estilos de la tarjeta de producto (sin cambios)
+        return (
+            <View style={styles.productAuditCard}> 
+                <View style={styles.productAuditInfo}>
+                    <Text style={styles.productName}>{item.nombre_producto}</Text> 
+                    <Text style={styles.productDetails}>${price.toFixed(2)}</Text> 
+                </View>
+                <View style={styles.productAuditActions}>
+                    <TouchableOpacity 
+                        style={[styles.actionButton, { backgroundColor: '#007bff' }]}
+                        onPress={() => navigation.navigate('ProductForm', { productToEdit: item })}
+                    >
+                        <MaterialIcons name="edit" size={20} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.actionButton, { backgroundColor: '#dc3545', marginLeft: 10 }]}
+                        onPress={() => deleteProduct(item.id_producto, item.nombre_producto)}
+                    >
+                        <MaterialIcons name="delete" size={20} color="#fff" />
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    };
 
-  if (isLoading) {
+    if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007bff" />
@@ -205,30 +205,41 @@ export const ProductManagementScreen = ({ navigation }) => {
     );
   }
 
-  return (
-    <View style={styles.dashboardContainer}>
-      <TouchableOpacity 
-        style={[styles.button, { backgroundColor: '#28a745' }]} 
-        onPress={() => navigation.navigate('ProductForm', { productToEdit: null })}
-      >
-        <MaterialIcons name="add" size={24} color="#fff" />
-        <Text style={[styles.buttonText, { marginLeft: 10 }]}>Añadir Nuevo Producto</Text>
-      </TouchableOpacity>
+return (
+        // Usamos un View simple para el fondo, y el padding horizontal
+        // se aplicará a los elementos internos
+        <View style={styles.dashboardContainer}> 
+            
+            {/* Contenedor del Botón Añadir para aplicar padding horizontal */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+                <TouchableOpacity 
+                    // Añadimos marginVertical para separarlo de la lista/título/borde superior
+                    style={[styles.button, { backgroundColor: '#28a745', marginVertical: 10 }]} 
+                    onPress={() => navigation.navigate('ProductForm', { productToEdit: null })}
+                >
+                    <MaterialIcons name="add" size={24} color="#fff" />
+                    <Text style={[styles.buttonText, { marginLeft: 10 }]}>Añadir Nuevo Producto</Text>
+                </TouchableOpacity>
+            </View>
 
-      {products.length === 0 ? (
-        <View style={styles.emptyState}>
-            <MaterialIcons name="inventory-2" size={50} color="#ccc" />
-            <Text style={styles.emptyText}>No hay productos en el menú.</Text>
+
+            {products.length === 0 ? (
+                // El estado vacío va centrado
+                <View style={styles.emptyState}> 
+                    <MaterialIcons name="inventory-2" size={50} color="#ccc" />
+                    <Text style={styles.emptyText}>No hay productos en el menú.</Text>
+                </View>
+            ) : (
+                // La FlatList ahora ocupa el resto del espacio
+                <FlatList
+                    data={products}
+                    keyExtractor={(item) => item.id_producto.toString()} 
+                    renderItem={renderProduct}
+                    // Aplicamos el padding horizontal directamente a la lista
+                    contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 20 }}
+                    style={{ flex: 1 }}
+                />
+            )}
         </View>
-      ) : (
-        <FlatList
-          data={products}
-          keyExtractor={(item) => item.id_producto.toString()} 
-          renderItem={renderProduct}
-          contentContainerStyle={{ paddingBottom: 20, marginTop: 15 }}
-          style={{ flex: 1 }}
-        />
-      )}
-    </View>
-  );
+    );
 };

@@ -3,11 +3,12 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AdminMainScreen from '../screens/Admin/AdminMainScreen';
 import UserCreationScreen from '../screens/Admin/UserCreationScreen';
 import { ProductManagementScreen, ProductFormScreen } from '../screens/Admin/ProductManagementScreen';
-import OrderAuditScreen from '../screens/Admin/OrderAuditScreen'; //por crear
+import OrderAuditScreen from '../screens/Admin/OrderAuditScreen'; 
+import OrderDetailsScreen from '../screens/Admin/OrderDetailsScreen';
 
 const AdminStack = createNativeStackNavigator();
 
-const AdminNavigator = () => (
+export const AdminNavigator = () => (
   <AdminStack.Navigator screenOptions={{ 
       headerShown: true,
       headerStyle: { backgroundColor: '#007bff' },
@@ -43,15 +44,20 @@ const AdminNavigator = () => (
       options={({ route }) => ({ 
         title: route.params?.productToEdit ? 'Editar Producto' : 'Crear Producto' 
       })} 
-    />
-    
+    />  
     {/* 5. Auditoría de Comandas */}
-    <AdminStack.Screen 
-      name="OrderAudit" 
-      component={OrderAuditScreen} 
-      options={{ title: 'Auditoría de Comandas' }} 
-    />
-  </AdminStack.Navigator>
-);
+        <AdminStack.Screen 
+            name="OrderAudit" 
+            component={OrderAuditScreen} 
+            options={{ title: 'Auditoría de Comandas' }} 
+        />
 
-export default AdminNavigator;
+      {/* 6. Detalles de una Comanda específica */}
+        <AdminStack.Screen 
+            name="OrderDetails" // 👈 ESTE ES EL NOMBRE REGISTRADO CORRECTO
+            component={OrderDetailsScreen} 
+            options={{ title: 'Detalles de la Comanda' }} 
+        />
+    </AdminStack.Navigator>
+
+);

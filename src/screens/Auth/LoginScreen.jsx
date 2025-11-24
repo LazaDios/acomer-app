@@ -4,7 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles'; 
 
-const LoginScreen = () => {
+export const LoginScreen = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const { login, isLoading } = useContext(AuthContext);
@@ -70,5 +70,3 @@ return (
     </View>
 );
 };
-
-export default LoginScreen;

@@ -1,17 +1,16 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { AuthProvider } from './src/contexts/AuthContext';
-import AppNavigator from './src/navigation/AppNavigator';
+// App.js (O TU COMPONENTE RAÍZ)
 
-// Estructura principal de la aplicación
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native'; // ÚNICO LUGAR
+import { AuthProvider } from './src/contexts/AuthContext';
+import { AppNavigator } from './src/navigation/AppNavigator';
+
 export default function App() {
   return (
-    <NavigationContainer>
-      {/* 1. Proveedor de Contexto (Autenticación, Login/Logout) */}
-      <AuthProvider>
-        {/* 2. Navegador Principal (Lógica condicional de redirección por rol) */}
+    <AuthProvider>
+      <NavigationContainer> 
         <AppNavigator />
-      </AuthProvider>
-    </NavigationContainer>
+      </NavigationContainer>
+    </AuthProvider>
   );
 }
