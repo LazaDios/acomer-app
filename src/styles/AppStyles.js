@@ -3,17 +3,18 @@ import { StyleSheet, Dimensions } from 'react-native';
 const { width } = Dimensions.get('window');
 
 // Colores globales
+// Colores globales
 const COLORS = {
   primary: '#007bff',    // Azul principal
   secondary: '#6c757d',  // Gris secundario
   success: '#28a745',    // Verde éxito
   danger: '#dc3545',     // Rojo peligro/error
   warning: '#ffc107',    // Amarillo advertencia
-  background: '#f8f9fa', // Fondo gris claro
+  background: '#f5f5f5', // Fondo gris claro (Igual a Login)
   white: '#fff',
-  textDark: '#343a40',
-  textLight: '#6c757d',
-  border: '#ced4da',
+  textDark: '#333',      // Texto oscuro (Igual a Login)
+  textLight: '#666',     // Texto claro (Igual a Login)
+  border: '#ddd',        // Borde (Igual a Login)
 };
 
 export const styles = StyleSheet.create({
@@ -22,69 +23,18 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  loadingContainer: {
+  dashboardBaseFooter: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: COLORS.textDark,
+    backgroundColor: COLORS.background,
   },
   dashboardContainer: {
     flex: 1,
     padding: 20,
     backgroundColor: COLORS.background,
   },
+  // ... (loadingContainer skipped)
 
-  // ** LOGIN **
-  loginScreenContainer: { // Antes loginContainer
-    flex: 1,
-    backgroundColor: COLORS.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-  },
-  loginBox: {
-    width: '100%',
-    maxWidth: 400,
-    padding: 30,
-    borderRadius: 12,
-    backgroundColor: COLORS.background,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-  },
-  loginTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  inputContainerLogin: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    marginBottom: 20,
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 10,
-    height: 50,
-  },
-  loginIcon: {
-    marginRight: 10,
-  },
-  loginInput: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.textDark,
-  },
+  // (Login styles skipped)
 
   // ** TÍTULOS Y TEXTOS **
   dashboardTitle: {
@@ -92,9 +42,8 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     color: COLORS.textDark,
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.primary,
-    paddingBottom: 10,
+    textAlign: 'center', // Centrado como en Login
+    // Quitamos borde inferior para estilo "sencillo"
   },
   sectionTitle: {
     fontSize: 20,
@@ -106,7 +55,7 @@ export const styles = StyleSheet.create({
     borderBottomColor: COLORS.primary,
     paddingBottom: 5,
   },
-  sectionTitleOperative: { 
+  sectionTitleOperative: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#495057',
@@ -272,8 +221,8 @@ export const styles = StyleSheet.create({
     // borderLeftColor se sobreescribe dinámicamente en el componente
   },
   highlightedCard: {
-    borderLeftColor: COLORS.warning, 
-    backgroundColor: '#fffbe6', 
+    borderLeftColor: COLORS.warning,
+    backgroundColor: '#fffbe6',
     shadowColor: COLORS.warning,
     shadowOpacity: 0.8,
     shadowRadius: 5,
@@ -320,7 +269,7 @@ export const styles = StyleSheet.create({
   },
 
   // ** EDITOR DE COMANDAS (CARRITO Y PRODUCTOS) **
-  
+
   // Menú Horizontal
   productItemCard: {
     backgroundColor: COLORS.white,
@@ -404,30 +353,43 @@ export const styles = StyleSheet.create({
     marginTop: 5,
   },
   quantityButton: {
-    padding: 5,
+    padding: 8,
+    borderRadius: 8,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
   quantityText: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginHorizontal: 12,
+    marginHorizontal: 15,
     color: COLORS.textDark,
   },
   descriptionInput: { // Notas del producto
-    backgroundColor: COLORS.background,
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderColor: '#eee',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     fontSize: 13,
-    marginTop: 8,
-    width: '95%',
+    marginTop: 10,
+    width: '100%',
     color: '#495057',
   },
-  deleteButton: {
-    padding: 10,
+  deleteButton: { // Botón de eliminar del carrito
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 20, // Circular
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+    marginLeft: 10,
+    alignSelf: 'center', // Centrado verticalmente en la fila
   },
   emptyStateCart: {
     alignItems: 'center',
@@ -537,7 +499,7 @@ export const styles = StyleSheet.create({
     marginLeft: 10,
     alignItems: 'center',
   },
-// Agrega esto en src/styles/AppStyles.js
+  // Agrega esto en src/styles/AppStyles.js
 
   // --- ESTILOS PARA EL MENÚ DE ADMINISTRADOR (Tarjetas) ---
   adminGrid: {
@@ -582,13 +544,13 @@ export const styles = StyleSheet.create({
     marginTop: 2,
   },
   // --- Nuevo estilo base para los botones del Admin ---
-adminButtonBase: {
+  adminButtonBase: {
     marginVertical: 8, // Espacio arriba y abajo para separar los botones
     paddingHorizontal: 20, // Padding en los lados
-},
+  },
 
-// 1. Asegúrate de que este estilo se vea así para separar el texto de los botones
-productAuditCard: {
+  // 1. Asegúrate de que este estilo se vea así para separar el texto de los botones
+  productAuditCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -600,43 +562,173 @@ productAuditCard: {
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-},
+  },
 
-// 2. Modifica el contenedor de las acciones
-productAuditActions: {
+  // 2. Modifica el contenedor de las acciones
+  productAuditActions: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 'auto', // Esto empuja las acciones a la derecha
-},
+  },
 
-// 3. Modifica el estilo general para los botones de acción
-actionButton: {
+  // 3. Modifica el estilo general para los botones de acción
+  actionButton: {
     padding: 8, // Aumentamos el padding interno para que sean más grandes y cliqueables
     borderRadius: 6,
     // El margen lateral se gestiona en línea en el componente
-},
-// ... otros estilos ...
-summaryBox: {
-        backgroundColor: '#e9ecef', // Un fondo claro para la caja
-        padding: 15,
-        borderRadius: 8,
-        marginTop: 15,
-        // Usamos columna para que la etiqueta y el valor no compitan por el ancho
-        flexDirection: 'column', 
-        alignItems: 'flex-start', // Alinea el contenido a la izquierda
-    },
-    summaryLabel: {
-        fontSize: 14,
-        color: '#495057',
-        marginBottom: 5,
-        flexShrink: 1, // Permite que el texto se comprima si es necesario
-    },
-    summaryValue: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#007bff', // Color destacado para el total
-        // Aseguramos que el valor monetario siempre tenga todo el espacio
-        // Si el valor es lo que se sale, puedes reducir el tamaño de fuente aquí.
-    },
+  },
+  // ... otros estilos ...
+  summaryBox: {
+    backgroundColor: '#e9ecef', // Un fondo claro para la caja
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    // Usamos columna para que la etiqueta y el valor no compitan por el ancho
+    flexDirection: 'column',
+    alignItems: 'flex-start', // Alinea el contenido a la izquierda
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#495057',
+    marginBottom: 5,
+    flexShrink: 1, // Permite que el texto se comprima si es necesario
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#007bff', // Color destacado para el total
+    // Aseguramos que el valor monetario siempre tenga todo el espacio
+    // Si el valor es lo que se sale, puedes reducir el tamaño de fuente aquí.
+  },
+
+  dashboardContainer: {
+    flex: 1,
+    padding: 15,
+    backgroundColor: '#f8f9fa', // Fondo claro
+  },
+  dashboardTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#343a40',
+    textAlign: 'center',
+  },
+  // ... otros estilos ...
+
+  // --- ESTILOS OPERATIVOS COCINERO (Nuevos o Modificados) ---
+  sectionTitleOperative: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#495057',
+    marginTop: 10,
+    marginBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#dee2e6',
+    paddingBottom: 5,
+  },
+
+  // 1. Estilo para la Tarjeta de Comanda
+  cocineroCard: {
+    // Estilos base de la tarjeta (más grande y notoria)
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    elevation: 5, // Sombra para Android
+    shadowColor: '#000', // Sombra para iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+
+  // 2. Encabezado de la Comanda
+  cocineroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 10,
+    marginBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: '#f1f1f1',
+  },
+  cocineroTitle: {
+    // Mesa/ID destacado
+    fontSize: 24,
+    fontWeight: '900', // Súper negrita
+    flex: 1,
+  },
+  cocineroStatusPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cocineroStatusText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+
+  // 3. Estilos de los Productos (El corazón de la pantalla)
+  cocineroItemContainer: {
+    // Estilo para cada ítem de producto
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    alignItems: 'flex-start',
+  },
+  cocineroQuantity: {
+    // Cantidad grande y a la izquierda
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#343a40',
+    marginRight: 10,
+    minWidth: 35,
+    textAlign: 'center',
+  },
+  cocineroProductName: {
+    // Nombre del producto
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+    color: '#212529',
+  },
+  cocineroNote: {
+    // Nota del cliente
+    fontSize: 14,
+    color: '#dc3545', // Color rojo para las notas, deben ser visibles
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginLeft: 45, // Alineado debajo del nombre
+    paddingLeft: 5,
+    borderLeftWidth: 3,
+    borderLeftColor: '#ffc107',
+    paddingVertical: 2,
+  },
+
+  // 4. Estilos de Acciones
+  cocineroActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 15,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f1f1',
+  },
+  smallButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+    marginHorizontal: 5,
+    flex: 1,
+  },
+  smallButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 14,
+  },
 
 });

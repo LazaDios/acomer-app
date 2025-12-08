@@ -198,7 +198,9 @@ export const CocineroDashboard = ({ navigation }) => {
 
     return (
         <View style={styles.dashboardContainer}>
-            <Text style={styles.dashboardTitle}>🍳 Dashboard del Cocinero</Text>
+            <Text style={[styles.dashboardTitle, { marginTop: 35 }]}>
+                🍳 Dashboard del Cocinero
+            </Text>
             
             <Text style={styles.sectionTitleOperative}>
                 Órdenes Pendientes (Actualización cada 10s)

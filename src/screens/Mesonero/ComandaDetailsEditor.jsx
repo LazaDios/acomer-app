@@ -10,11 +10,11 @@ import { styles } from '../../styles/AppStyles';
 const ESTADO_ABIERTA = 'Abierta'; // Estado inicial para nuevas comandas
 
 export const ComandaDetailsEditor = ({ route, navigation }) => {
-    const { userToken, API_BASE_URL } = useContext(AuthContext); 
-    
+    const { userToken, API_BASE_URL } = useContext(AuthContext);
+
     // Parámetros de la ruta
     const { comandaId, mesa: mesaInicial } = route.params || {};
-    
+
     // Determina el modo: Creación (false) o Edición (true)
     const isEditing = !!comandaId;
 
@@ -25,7 +25,7 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
     const [existingItems, setExistingItems] = useState([]); // Productos ya guardados (Solo Edición)
     const [isProductLoading, setIsProductLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    
+
     // 1. Cargar lista de productos del menú
     const fetchProductos = useCallback(async () => {
         try {
@@ -45,7 +45,7 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
     // 2. Cargar detalles existentes (Solo si estamos editando)
     const fetchExistingComanda = useCallback(async () => {
         if (!isEditing) return;
-        
+
         try {
             // Requiere el endpoint GET /comandas/:id en el backend
             const response = await axios.get(`${API_BASE_URL}/comandas/${comandaId}`, {
@@ -55,14 +55,14 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
             const comandaData = response.data;
             // Si la mesa viene vacía en params, usamos la de la BD
             if (!mesa) setMesa(comandaData.mesa);
-            
+
             // Guardamos los detalles existentes para mostrarlos (solo lectura)
             setExistingItems(comandaData.detallesComanda || []);
-            
+
         } catch (error) {
             console.error('Error al cargar comanda:', error.message);
             Alert.alert('Error', 'No se pudo cargar la comanda existente.');
-            navigation.goBack(); 
+            navigation.goBack();
         }
     }, [isEditing, comandaId, mesa, userToken, API_BASE_URL, navigation]);
 
@@ -134,7 +134,7 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
                 await axios.post(`${API_BASE_URL}/detalle-comandas`, {
                     comandaId: comandaId,
                     detalles: itemsToSend // Revisa si tu DTO espera 'detalles' o 'items'
-                }, { headers: { Authorization: `Bearer ${userToken}` }});
+                }, { headers: { Authorization: `Bearer ${userToken}` } });
 
                 Alert.alert('Actualizado', 'Productos agregados a la comanda.');
             } else {
@@ -142,14 +142,14 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
                 // POST /comandas (asumiendo que este crea todo junto)
                 // O el flujo de 2 pasos si tu backend lo requiere así.
                 // Aquí asumo un endpoint que recibe todo junto o la lógica que ya tenías.
-                
+
                 // Si tu backend requiere crear comanda primero y luego detalles, 
                 // necesitaríamos esa lógica aquí. Por ahora usaré un POST genérico.
-                 await axios.post(`${API_BASE_URL}/comandas/completa`, { // Ajusta esta ruta a tu backend real
+                await axios.post(`${API_BASE_URL}/comandas/completa`, { // Ajusta esta ruta a tu backend real
                     mesa: mesa,
                     detalles: itemsToSend
-                }, { headers: { Authorization: `Bearer ${userToken}` }});
-                
+                }, { headers: { Authorization: `Bearer ${userToken}` } });
+
                 Alert.alert('Creado', 'Comanda creada exitosamente.');
             }
 
@@ -183,7 +183,7 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
             {/* Input de Mesa */}
             <View style={styles.inputContainer}>
                 <MaterialIcons name="table-restaurant" size={24} color="gray" />
-                <TextInput 
+                <TextInput
                     style={styles.input}
                     placeholder="Número de Mesa"
                     value={mesa}
@@ -213,34 +213,38 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
                         {/* Lado Izquierdo: Info y Controles */}
                         <View style={{ flex: 1 }}>
                             <Text style={styles.productName}>{item.nombre_producto}</Text>
-            
+
                             {/* Controles de Cantidad */}
                             <View style={styles.quantityContainer}>
                                 <TouchableOpacity onPress={() => {
-                                    if(item.cantidad > 1) updateCartItem(index, 'cantidad', item.cantidad - 1);
-                                }} style={styles.quantityButton}>
-                                    <MaterialIcons name="remove-circle" size={28} color="#dc3545" />
+                                    if (item.cantidad > 1) updateCartItem(index, 'cantidad', item.cantidad - 1);
+                                }} style={[styles.quantityButton, { backgroundColor: '#ffe6e6' }]}>
+                                    {/* Fondo rojizo suave para (-) */}
+                                    <MaterialIcons name="remove" size={24} color="#dc3545" />
                                 </TouchableOpacity>
-                                
+
                                 <Text style={styles.quantityText}>{item.cantidad}</Text>
-                                
-                                <TouchableOpacity onPress={() => updateCartItem(index, 'cantidad', item.cantidad + 1)} style={styles.quantityButton}>
-                                    <MaterialIcons name="add-circle" size={28} color="#28a745" />
+
+                                <TouchableOpacity onPress={() => updateCartItem(index, 'cantidad', item.cantidad + 1)}
+                                    style={[styles.quantityButton, { backgroundColor: '#e6fffa' }]}>
+                                    {/* Fondo verdoso suave para (+) */}
+                                    <MaterialIcons name="add" size={24} color="#28a745" />
                                 </TouchableOpacity>
                             </View>
 
                             {/* Input de Nota */}
-                            <TextInput 
+                            <TextInput
                                 placeholder="Nota (ej. Sin cebolla)"
                                 style={styles.descriptionInput}
                                 value={item.descripcion}
                                 onChangeText={(text) => updateCartItem(index, 'descripcion', text)}
                             />
                         </View>
-                        
+
                         {/* Lado Derecho: Eliminar */}
-                        <TouchableOpacity onPress={() => removeCartItem(index)} style={styles.deleteButton}>
-                            <MaterialIcons name="delete" size={26} color="#6c757d" />
+                        <TouchableOpacity onPress={() => removeCartItem(index)}
+                            style={styles.deleteButton}>
+                            <MaterialIcons name="delete-outline" size={24} color="#dc3545" />
                         </TouchableOpacity>
                     </View>
                 ))}
@@ -249,19 +253,25 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
                 <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Menú</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                     {productosDisponibles.map(prod => (
-                        <TouchableOpacity 
-                            key={prod.id_producto} 
+                        <TouchableOpacity
+                            key={prod.id_producto}
                             style={styles.productItemCard} // Asegúrate de tener este estilo o usa uno inline
                             onPress={() => handleAddProduct(prod)}
                         >
-                            <Text style={{ fontWeight: 'bold' }}>{prod.nombre_producto}</Text>
-                            <Text style={{ color: 'green' }}>${prod.precio_producto}</Text>
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                <MaterialIcons name="restaurant-menu" size={24} color="#007bff" style={{ marginBottom: 5 }} />
+                                <Text style={{ fontWeight: 'bold', textAlign: 'center', fontSize: 13 }}>{prod.nombre_producto}</Text>
+                                <Text style={{ color: 'green', fontWeight: 'bold', marginTop: 2 }}>${prod.precio_producto}</Text>
+                            </View>
+                            <View style={{ position: 'absolute', bottom: 5, right: 5 }}>
+                                <MaterialIcons name="add-circle" size={20} color="#007bff" />
+                            </View>
                         </TouchableOpacity>
                     ))}
                 </View>
             </ScrollView>
 
-            <TouchableOpacity 
+            <TouchableOpacity
                 style={[styles.button, { backgroundColor: isSaving ? '#ccc' : '#007bff', marginTop: 10 }]}
                 onPress={handleSend}
                 disabled={isSaving}
