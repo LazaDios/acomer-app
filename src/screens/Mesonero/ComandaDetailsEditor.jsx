@@ -106,6 +106,46 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
         setCartItems(prev => prev.filter((_, i) => i !== index));
     };
 
+    // --- Lógica para Items Existentes (EDITAR / ELIMINAR) ---
+
+    // Marca un ítem existente como 'modificado' localmente para luego enviarlo
+    const handleUpdateExisting = (index, field, value) => {
+        setExistingItems(prev => {
+            const updated = [...prev];
+            updated[index][field] = value;
+            updated[index].isModified = true; // Flag para saber qué enviar
+            return updated;
+        });
+    };
+
+    const handleDeleteExisting = (item) => {
+        Alert.alert(
+            'Eliminar Producto',
+            `¿Estás seguro de quitar "${item.producto?.nombre_producto}" del pedido?`,
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Eliminar',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            // DELETE /detalle-comandas/:id
+                            await axios.delete(`${API_BASE_URL}/detalle-comandas/${item.id_detalle_comanda}`, {
+                                headers: { Authorization: `Bearer ${userToken}` },
+                            });
+                            // Actualizamos UI localmente quitándolo de la lista
+                            setExistingItems(prev => prev.filter(i => i.id_detalle_comanda !== item.id_detalle_comanda));
+                            Alert.alert('Eliminado', 'Producto retirado de la comanda.');
+                        } catch (error) {
+                            console.error('Error al eliminar detalle:', error);
+                            Alert.alert('Error', 'No se pudo eliminar el producto.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     // --- Enviar Datos ---
 
     const handleSend = async () => {
@@ -113,8 +153,15 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
             Alert.alert('Falta información', 'Por favor ingrese el número de mesa.');
             return;
         }
-        if (cartItems.length === 0) {
-            Alert.alert('Carrito vacío', 'Agregue al menos un producto.');
+        const hasModifications = existingItems.some(i => i.isModified);
+
+        if (cartItems.length === 0 && !hasModifications && isEditing) {
+            Alert.alert('Sin Cambios', 'Agregue productos o modifique los existentes.');
+            return;
+        }
+
+        if (cartItems.length === 0 && !isEditing) {
+            Alert.alert('Carrito vacío', 'Agregue al menos un producto para crear la comanda.');
             return;
         }
 
@@ -129,14 +176,33 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
             }));
 
             if (isEditing) {
-                // MODO EDICIÓN: Usamos endpoint para agregar detalles
-                // POST /detalle-comandas (según tu controlador)
-                await axios.post(`${API_BASE_URL}/detalle-comandas`, {
-                    comandaId: comandaId,
-                    detalles: itemsToSend // Revisa si tu DTO espera 'detalles' o 'items'
-                }, { headers: { Authorization: `Bearer ${userToken}` } });
+                // 1. Enviar NUEVOS items (si hay)
+                if (itemsToSend.length > 0) {
+                    await axios.post(`${API_BASE_URL}/detalle-comandas`, {
+                        comandaId: comandaId,
+                        detalles: itemsToSend
+                    }, { headers: { Authorization: `Bearer ${userToken}` } });
+                }
 
-                Alert.alert('Actualizado', 'Productos agregados a la comanda.');
+                // 2. Enviar MODIFICACIONES de items existentes
+                const modifiedItems = existingItems.filter(item => item.isModified);
+                const patchPromises = modifiedItems.map(item =>
+                    axios.patch(`${API_BASE_URL}/detalle-comandas/${comandaId}/${item.id_detalle_comanda}`, {
+                        cantidad: item.cantidad,
+                        descripcion: item.descripcion
+                    }, { headers: { Authorization: `Bearer ${userToken}` } })
+                );
+
+                if (patchPromises.length > 0) {
+                    await Promise.all(patchPromises);
+                }
+
+                if (itemsToSend.length > 0 || patchPromises.length > 0) {
+                    Alert.alert('Actualizado', 'Pedido actualizado correctamente.');
+                } else {
+                    Alert.alert('Sin Cambios', 'No detectamos cambios para guardar.');
+                    return; // No salir, dejar que navegue atrás
+                }
             } else {
                 // MODO CREACIÓN: Creamos comanda nueva
                 // POST /comandas (asumiendo que este crea todo junto)
@@ -193,20 +259,55 @@ export const ComandaDetailsEditor = ({ route, navigation }) => {
             </View>
 
             <ScrollView>
-                {/* Lista de Productos ya existentes (Solo lectura) */}
+                {/* 1. Detalles Existentes (EDITABLES) */}
                 {isEditing && existingItems.length > 0 && (
-                    <View style={{ marginBottom: 20, padding: 10, backgroundColor: '#f0f0f0', borderRadius: 8 }}>
-                        <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>Productos ya pedidos:</Text>
+                    <View>
+                        <Text style={styles.sectionTitle}>Productos en Pedido ({existingItems.length})</Text>
                         {existingItems.map((item, index) => (
-                            <Text key={index} style={{ color: '#555' }}>
-                                - {item.cantidad}x {item.producto?.nombre_producto || 'Producto'}
-                            </Text>
+                            <View key={item.id_detalle_comanda} style={[styles.cartItem, { borderColor: '#b3d7ff', borderWidth: 1 }]}>
+                                {/* Lado Izquierdo: Info y Controles */}
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.productName}>{item.producto?.nombre_producto || 'Producto'}</Text>
+
+                                    {/* Controles de Cantidad */}
+                                    <View style={styles.quantityContainer}>
+                                        <TouchableOpacity onPress={() => {
+                                            if (item.cantidad > 1) {
+                                                handleUpdateExisting(index, 'cantidad', item.cantidad - 1);
+                                            }
+                                        }} style={[styles.quantityButton, { backgroundColor: '#ffe6e6' }]}>
+                                            <MaterialIcons name="remove" size={24} color="#dc3545" />
+                                        </TouchableOpacity>
+
+                                        <Text style={styles.quantityText}>{item.cantidad}</Text>
+
+                                        <TouchableOpacity onPress={() => handleUpdateExisting(index, 'cantidad', item.cantidad + 1)}
+                                            style={[styles.quantityButton, { backgroundColor: '#e6fffa' }]}>
+                                            <MaterialIcons name="add" size={24} color="#28a745" />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {/* Input de Nota */}
+                                    <TextInput
+                                        placeholder="Nota (ej. Sin cebolla)"
+                                        style={styles.descriptionInput}
+                                        value={item.descripcion}
+                                        onChangeText={(text) => handleUpdateExisting(index, 'descripcion', text)}
+                                    />
+                                </View>
+
+                                {/* Lado Derecho: Eliminar (API DIRECTA) */}
+                                <TouchableOpacity onPress={() => handleDeleteExisting(item)}
+                                    style={styles.deleteButton}>
+                                    <MaterialIcons name="delete-outline" size={20} color="#dc3545" />
+                                </TouchableOpacity>
+                            </View>
                         ))}
                     </View>
                 )}
 
                 {/* 2. Carrito de Nuevos Ítems */}
-                <Text style={styles.sectionTitle}>Nuevos Productos ({cartItems.length})</Text>
+                <Text style={styles.sectionTitle}>Agregar Nuevos ({cartItems.length})</Text>
 
                 {cartItems.map((item, index) => (
                     <View key={index} style={styles.cartItem}>
