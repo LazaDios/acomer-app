@@ -17,9 +17,10 @@ const ESTADO_CANCELADA = 'Cancelada';
 
 export const MesoneroDashboard = ({ navigation }) => {
     // Extraemos userData para obtener el nombre
-    const { userToken, API_BASE_URL, logout, userData, userRole } = useContext(AuthContext);
+    const { userToken, API_BASE_URL, logout, restaurant, userRole } = useContext(AuthContext);
 
     const [comandas, setComandas] = useState([]);
+    const [tasaCambio, setTasaCambio] = useState(0); // Nuevo estado para la tasa
     const [isListLoading, setIsListLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
 
@@ -37,6 +38,21 @@ export const MesoneroDashboard = ({ navigation }) => {
             default: return 5;
         }
     };
+
+    // Función para obtener la tasa de cambio actual
+    const fetchTasa = useCallback(async () => {
+        if (!restaurant?.id_restaurante) return;
+        try {
+            const response = await axios.get(`${API_BASE_URL}/restaurantes/${restaurant.id_restaurante}`, {
+                headers: { Authorization: `Bearer ${userToken}` }
+            });
+            if (response.data.tasa_cambio) {
+                setTasaCambio(parseFloat(response.data.tasa_cambio));
+            }
+        } catch (error) {
+            console.error("Error fetching rate:", error);
+        }
+    }, [userToken, API_BASE_URL, restaurant]);
 
     const fetchComandas = useCallback(async () => {
         setIsListLoading(true);
@@ -65,16 +81,23 @@ export const MesoneroDashboard = ({ navigation }) => {
 
     useEffect(() => {
         fetchComandas();
+        fetchTasa(); // Cargar la tasa al iniciar
         const interval = setInterval(() => {
-            if (!isUpdating && !modalVisible) fetchComandas();
+            if (!isUpdating && !modalVisible) {
+                fetchComandas();
+                fetchTasa(); // Actualizar tasa periódicamente también
+            }
         }, 10000);
 
-        const unsubscribeFocus = navigation.addListener('focus', fetchComandas);
+        const unsubscribeFocus = navigation.addListener('focus', () => {
+            fetchComandas();
+            fetchTasa();
+        });
         return () => {
             clearInterval(interval);
             unsubscribeFocus();
         };
-    }, [fetchComandas, isUpdating, modalVisible, navigation]);
+    }, [fetchComandas, fetchTasa, isUpdating, modalVisible, navigation]);
 
     const openCancelModal = (id) => {
         setTargetComandaId(id);
@@ -135,6 +158,8 @@ export const MesoneroDashboard = ({ navigation }) => {
     const renderComanda = ({ item }) => {
         const esEditable = item.estado_comanda === ESTADO_ABIERTA || item.estado_comanda === ESTADO_PREPARANDO;
         const esCancelable = item.estado_comanda !== ESTADO_FINALIZADA && item.estado_comanda !== ESTADO_CANCELADA;
+        const totalUsd = parseFloat(item.total_comanda || 0);
+        const totalBs = tasaCambio > 0 ? (totalUsd * tasaCambio).toFixed(2) : null;
 
         return (
             <View style={[styles.orderCard, { borderColor: getStatusColor(item.estado_comanda), borderWidth: item.estado_comanda === ESTADO_FINALIZADA ? 4 : 2 }]}>
@@ -144,7 +169,16 @@ export const MesoneroDashboard = ({ navigation }) => {
                         <Text style={styles.orderStatusText}>{item.estado_comanda.toUpperCase()}</Text>
                     </View>
                 </View>
-                <Text style={styles.orderDetailText}>Total: ${parseFloat(item.total_comanda || 0).toFixed(2)}</Text>
+
+                {/* PRECIOS EN AMBAS MONEDAS */}
+                <View style={{ marginBottom: 10 }}>
+                    <Text style={styles.orderDetailText}>Total: ${totalUsd.toFixed(2)}</Text>
+                    {totalBs && (
+                        <Text style={[styles.orderDetailText, { color: '#28a745', fontWeight: 'bold' }]}>
+                            Bs {totalBs} (Tasa: {tasaCambio})
+                        </Text>
+                    )}
+                </View>
 
                 <View style={styles.orderActions}>
                     <TouchableOpacity
@@ -204,7 +238,7 @@ export const MesoneroDashboard = ({ navigation }) => {
         <View style={styles.dashboardContainer}>
             {/* 1. TÍTULO PERSONALIZADO */}
             <Text style={styles.dashboardTitle}>
-                Hola, {userData?.username || 'Mesonero'} ({userRole || 'Staff'})
+                Hola, Mesonero ({userRole || 'Staff'})
             </Text>
 
             {/* 2. BOTÓN DE CREAR COMANDA (Ahora arriba y ancho completo) */}
