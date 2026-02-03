@@ -74,13 +74,13 @@ const AdminMainScreen = ({ navigation }) => {
           <Text style={styles.dashboardButtonText}>Configurar Tasa (BS)</Text>
         </TouchableOpacity>
 
-        {/* 1. Botón para la creación de usuarios */}
+        {/* 1. Botón para la GESTIÓN de usuarios */}
         <TouchableOpacity
           style={[styles.dashboardButton, styles.adminButtonBase, { backgroundColor: '#28a745' }]}
-          onPress={() => navigation.navigate('UserCreation')}
+          onPress={() => navigation.navigate('UserManagement')}
         >
-          <MaterialIcons name="person-add" size={24} color="#fff" />
-          <Text style={styles.dashboardButtonText}>Crear Nuevo Usuario</Text>
+          <MaterialIcons name="people" size={24} color="#fff" />
+          <Text style={styles.dashboardButtonText}>Gestión de Personal</Text>
         </TouchableOpacity>
 
         {/* 2. Botón para la gestión de productos (CRUD) */}

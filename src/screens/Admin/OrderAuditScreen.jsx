@@ -26,14 +26,15 @@ const safeDate = (dateInput) => {
 // Helper para forzar hora Venezuela (UTC-4)
 const formatVenezuelaTime = (dateInput) => {
     const date = safeDate(dateInput);
-    if (!date || isNaN(date.getTime())) return 'N/A';
+    // Construimos la fecha manualmente usando los componentes LOCALES
+    // Esto respetará la hora que ya viene "lista" de la BD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
 
-    // Restamos 4 horas en milisegundos
-    const vetTime = new Date(date.getTime() - (4 * 60 * 60 * 1000));
-
-    // Devolvemos el string formateado como YYYY-MM-DD HH:mm
-    // Usamos toISOString para obtener los números "offseteados" y cortamos la 'Z' y milisegundos
-    return vetTime.toISOString().replace('T', ' ').substring(0, 16);
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
 };
 
 // Estados sincronizados con la capitalización del backend
@@ -57,8 +58,44 @@ const OrderAuditScreen = ({ navigation }) => {
     const [endDate, setEndDate] = useState(new Date());
 
     const [totalSales, setTotalSales] = useState(0);
+    const [topProducts, setTopProducts] = useState([]); // Estado para Top Productos
 
     const { userToken, API_BASE_URL, userName, userRole } = useContext(AuthContext);
+
+    // --- EFFECT: Calcular Top Productos ---
+    useEffect(() => {
+        if (!filteredComandas || filteredComandas.length === 0) {
+            setTopProducts([]);
+            return;
+        }
+
+        const productMap = {};
+
+        // 1. Iterar solo sobre comandas CERRADAS dentro del filtro actual
+        filteredComandas.forEach(comanda => {
+            if (comanda.estado_comanda === 'Cerrada' && comanda.detallesComanda) {
+                comanda.detallesComanda.forEach(detalle => {
+                    const nombre = detalle.producto?.nombre_producto || 'Desconocido';
+                    const cantidad = Number(detalle.cantidad) || 0;
+
+                    if (!productMap[nombre]) {
+                        productMap[nombre] = 0;
+                    }
+                    productMap[nombre] += cantidad;
+                });
+            }
+        });
+
+        // 2. Convertir a array y  ordenar
+        const sortedProducts = Object.entries(productMap)
+            .map(([name, qty]) => ({ name, qty }))
+            .sort((a, b) => b.qty - a.qty)
+            .slice(0, 5); // Top 5
+
+        setTopProducts(sortedProducts);
+
+    }, [filteredComandas]);
+
 
     // --- FUNCIÓN DE CARGA DE DATOS ---
     const fetchAllComandas = async () => {
@@ -331,12 +368,19 @@ const OrderAuditScreen = ({ navigation }) => {
             <Text style={[appStyles.orderDetailText, { fontWeight: 'bold', marginTop: 10, fontSize: 16 }]}>
                 Total: ${parseFloat(item.total_comanda || 0).toFixed(2)}
             </Text>
+
+            {/* Referencia de Pago */}
+            {item.referencia_pago && (
+                <Text style={{ marginTop: 4, color: '#666', fontStyle: 'italic', fontSize: 13 }}>
+                    Referencia: <Text style={{ fontWeight: 'bold', color: '#333' }}>{item.referencia_pago}</Text>
+                </Text>
+            )}
         </TouchableOpacity>
     );
 
-    return (
-        <View style={appStyles.dashboardContainer}>
-
+    // --- RENDER HEADER (Todo lo que va arriba de la lista y debe scrollear) ---
+    const renderHeader = () => (
+        <View>
             <Text style={appStyles.dashboardTitle}>📋 Mis Comandas (Mesonero)</Text>
 
             {/* Pequeño indicador para la primera carga si la lista está vacía */}
@@ -360,76 +404,114 @@ const OrderAuditScreen = ({ navigation }) => {
                 </Picker>
             </View>
 
-            {/* Controles de Fecha */}
+            {/* Controles de Fecha (Mismo renglón) */}
             {(selectedStatus === 'Cerrada' || selectedStatus === 'TODAS') && (
-                <View style={appStyles.dateFilterContainer}>
+                <View style={[appStyles.dateFilterContainer, { marginBottom: 15 }]}>
                     <Text style={appStyles.summaryLabel}>Rango de Búsqueda:</Text>
 
-                    <View style={appStyles.datePickerRow}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 }}>
                         {/* Fecha Inicio */}
-                        <TouchableOpacity onPress={() => showPicker(setStartDate)} style={appStyles.dateButton}>
+                        <TouchableOpacity onPress={() => showPicker(setStartDate)} style={[appStyles.dateButton, { flex: 1, marginRight: 5, marginBottom: 0 }]}>
                             <MaterialIcons name="event" size={20} color="#007bff" />
-                            <Text style={appStyles.dateButtonText}>Desde: {formatDate(startDate)}</Text>
+                            <Text style={appStyles.dateButtonText} numberOfLines={1}>
+                                {formatDate(startDate)}
+                            </Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity onPress={() => showPicker(setEndDate)} style={appStyles.dateButton}>
-                            <MaterialIcons name="event" size={20} color="#007bff" />
-                            <Text style={appStyles.dateButtonText}>Hasta: {formatDate(endDate)}</Text>
-                        </TouchableOpacity>
+                        <Text style={{ marginHorizontal: 5, color: '#666' }}>al</Text>
 
-                        {isPickerVisible && (
-                            <DateTimePicker
-                                value={new Date()}
-                                mode="date"
-                                display="default"
-                                onChange={handleDateChange}
-                            />
-                        )}
+                        <TouchableOpacity onPress={() => showPicker(setEndDate)} style={[appStyles.dateButton, { flex: 1, marginLeft: 5, marginBottom: 0 }]}>
+                            <MaterialIcons name="event" size={20} color="#007bff" />
+                            <Text style={appStyles.dateButtonText} numberOfLines={1}>
+                                {formatDate(endDate)}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
+
+                    {isPickerVisible && (
+                        <DateTimePicker
+                            value={new Date()}
+                            mode="date"
+                            display="default"
+                            onChange={handleDateChange}
+                        />
+                    )}
                 </View>
             )}
 
             {/* METRICA: Total de Ventas CERRADAS */}
             {(selectedStatus === 'Cerrada' || selectedStatus === 'TODAS') && (
                 <>
-                    {/* BOTÓN PARA GENERAR PDF */}
-                    <TouchableOpacity
-                        onPress={generateSalesPDF}
-                        style={[appStyles.button, { marginTop: 10, backgroundColor: '#dc3545', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
-                    >
-                        <MaterialIcons name="picture-as-pdf" size={24} color="white" style={{ marginRight: 8 }} />
-                        <Text style={appStyles.buttonText}>Generar Reporte PDF (${totalSales.toFixed(2)})</Text>
-                    </TouchableOpacity>
+                    {/* --- SECCIÓN PRODUCTOS MÁS VENDIDOS --- */}
+                    <View style={{ marginBottom: 15, backgroundColor: '#fff', padding: 15, borderRadius: 8, elevation: 2 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10 }}>🏆 Productos Más Vendidos</Text>
+                        {topProducts.length === 0 ? (
+                            <Text style={{ fontStyle: 'italic', color: '#666', fontSize: 12 }}>No hay suficientes datos.</Text>
+                        ) : (
+                            topProducts.map((prod, index) => (
+                                <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingBottom: 4 }}>
+                                    <Text style={{ flex: 1, color: '#444', fontSize: 13 }}>
+                                        <Text style={{ fontWeight: 'bold' }}>#{index + 1}</Text> {prod.name}
+                                    </Text>
+                                    <Text style={{ fontWeight: 'bold', color: '#007bff', fontSize: 13 }}>{prod.qty}</Text>
+                                </View>
+                            ))
+                        )}
+                    </View>
 
                     <View style={appStyles.summaryBox}>
                         <Text style={appStyles.summaryLabel}>
-                            Total de Ventas CERRADAS en el rango ({formatDate(startDate)} - {formatDate(endDate)}):
+                            Total ({formatDate(startDate)} - {formatDate(endDate)}):
                         </Text>
                         <Text style={appStyles.summaryValue}>${totalSales.toFixed(2)}</Text>
                     </View>
+
+                    {/* BOTÓN PARA GENERAR PDF */}
+                    <TouchableOpacity
+                        onPress={generateSalesPDF}
+                        style={[appStyles.button, { marginTop: 5, marginBottom: 20, backgroundColor: '#dc3545', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
+                    >
+                        <MaterialIcons name="picture-as-pdf" size={20} color="white" style={{ marginRight: 8 }} />
+                        <Text style={appStyles.buttonText}>Descargar Reporte</Text>
+                    </TouchableOpacity>
                 </>
             )}
 
-            {/* Lista de Comandas Filtradas */}
-            {filteredComandas.length === 0 && !isLoading ? (
-                <View style={appStyles.emptyState}>
-                    <MaterialIcons name="local-dining" size={50} color="#ccc" />
-                    <Text style={appStyles.emptyText}>
-                        {userRole === 'administrador'
-                            ? `No hay comandas en estado "${selectedStatus}" en este rango de fechas.`
-                            : `No hay comandas asignadas a ti en estado "${selectedStatus}".`
-                        }
-                    </Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={filteredComandas}
-                    keyExtractor={(item) => item.comanda_id.toString()}
-                    renderItem={renderComanda}
-                    contentContainerStyle={{ paddingBottom: 20, marginTop: 15 }}
-                    style={{ flex: 1 }}
-                />
-            )}
+            <Text style={[appStyles.label, { marginTop: 10, marginBottom: 5 }]}>Listado de Comandas:</Text>
+        </View>
+    );
+
+    return (
+        <View style={appStyles.dashboardContainer}>
+            <FlatList
+                data={filteredComandas}
+                keyExtractor={(item) => item.comanda_id.toString()}
+                renderItem={renderComanda}
+                ListHeaderComponent={renderHeader}
+                ListEmptyComponent={
+                    !isLoading ? (
+                        <View style={[appStyles.emptyState, { marginTop: 50 }]}>
+                            <MaterialIcons name="local-dining" size={50} color="#ccc" />
+                            <Text style={appStyles.emptyText}>
+                                {userRole === 'administrador'
+                                    ? `No hay comandas "${selectedStatus}" en este rango.`
+                                    : `No hay comandas asignadas en estado "${selectedStatus}".`
+                                }
+                            </Text>
+                        </View>
+                    ) : null
+                }
+                contentContainerStyle={{ paddingBottom: 20 }}
+                style={{ flex: 1 }}
+                // OPTIMIZACIONES DE MEMORIA
+                removeClippedSubviews={true} // Desmonta vistas fuera de pantalla (Solo Android, pero ayuda mucho)
+                initialNumToRender={10} // Renderiza solo 10 al inicio
+                maxToRenderPerBatch={10} // Carga de 10 en 10
+                windowSize={10} // Reduce el buffer de renderizado fuera de pantalla (Default es 21)
+                getItemLayout={(data, index) => (
+                    { length: 150, offset: 150 * index, index } // Asumiendo altura fija aprox de 150px
+                )}
+            />
         </View>
     );
 };

@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 
 // TODO: Replace with your actual backend URL
 // For Android Emulator use 10.0.2.2, for physical device use your IP
-const API_URL = 'http://192.168.1.100:3000/auth';
+const API_URL = 'http://172.29.80.1:3000/auth';
 
 export const authService = {
     login: async (username, password) => {

@@ -11,7 +11,7 @@ WebBrowser.maybeCompleteAuthSession();
 // --- 1. CONFIGURACIÓN DE LA API ---
 // ***************************************************************
 // !!! IMPORTANTE: CAMBIA 'TU_IP_LOCAL' POR LA IP DE TU PC !!!
-const API_BASE_URL = 'http://192.168.1.3:3000/api/v1'; // Usa la base de tu App.js
+const API_BASE_URL = 'http://172.29.80.1:3000/api/v1'; // Usa la base de tu App.js
 // ***************************************************************
 const TOKEN_KEY = 'user_token';
 const USER_ROLE_KEY = 'user_role';
@@ -45,13 +45,14 @@ export const AuthProvider = ({ children }) => {
         const role = await SecureStore.getItemAsync(USER_ROLE_KEY);
         const storedRestaurant = await SecureStore.getItemAsync(RESTAURANT_KEY);
 
-        if (storedRestaurant) {
-          setRestaurant(JSON.parse(storedRestaurant));
-        }
-
         if (token && role) {
           setUserToken(token);
           setUserRole(role);
+
+          // Solo restauramos el restaurante si hay un usuario logueado
+          if (storedRestaurant) {
+            setRestaurant(JSON.parse(storedRestaurant));
+          }
         }
       } catch (error) {
         console.error('Error al cargar datos de almacenamiento:', error);

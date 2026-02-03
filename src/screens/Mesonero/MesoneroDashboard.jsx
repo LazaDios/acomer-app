@@ -27,7 +27,11 @@ export const MesoneroDashboard = ({ navigation }) => {
     // Estados Modal Cancelación
     const [modalVisible, setModalVisible] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
-    const [targetComandaId, setTargetComandaId] = useState(null);
+    const [targetComandaId, setTargetComandaId] = useState(null); // RESTORED
+    // Estado para Modal de Cobro
+    const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+    const [paymentRef, setPaymentRef] = useState('');
+    const [selectedPaymentComandaId, setSelectedPaymentComandaId] = useState(null);
 
     const getPriority = (status) => {
         switch (status) {
@@ -83,7 +87,7 @@ export const MesoneroDashboard = ({ navigation }) => {
         fetchComandas();
         fetchTasa(); // Cargar la tasa al iniciar
         const interval = setInterval(() => {
-            if (!isUpdating && !modalVisible) {
+            if (!isUpdating && !modalVisible && !paymentModalVisible) {
                 fetchComandas();
                 fetchTasa(); // Actualizar tasa periódicamente también
             }
@@ -97,7 +101,7 @@ export const MesoneroDashboard = ({ navigation }) => {
             clearInterval(interval);
             unsubscribeFocus();
         };
-    }, [fetchComandas, fetchTasa, isUpdating, modalVisible, navigation]);
+    }, [fetchComandas, fetchTasa, isUpdating, modalVisible, paymentModalVisible, navigation]);
 
     const openCancelModal = (id) => {
         setTargetComandaId(id);
@@ -127,22 +131,27 @@ export const MesoneroDashboard = ({ navigation }) => {
         }
     };
 
-    const handleMarkClosed = (comandaId) => {
-        Alert.alert('Cerrar', '¿Marcar como PAGADA/CERRADA?', [
-            { text: 'No', style: 'cancel' },
-            { text: 'Sí', onPress: () => updateComandaStatus(comandaId, ESTADO_CERRADA, 'Cerrada') }
-        ]);
+    const openPaymentModal = (comandaId) => {
+        setSelectedPaymentComandaId(comandaId);
+        setPaymentRef('');
+        setPaymentModalVisible(true);
     };
 
-    const updateComandaStatus = async (comandaId, nuevoEstado, msg) => {
+    const confirmPayment = async () => {
+        setPaymentModalVisible(false);
         setIsUpdating(true);
         try {
-            await axios.patch(`${API_BASE_URL}/comandas/${comandaId}/status`, { estado: nuevoEstado },
-                { headers: { Authorization: `Bearer ${userToken}` } });
-            Alert.alert('Éxito', msg);
+            await axios.patch(`${API_BASE_URL}/comandas/${selectedPaymentComandaId}/status`,
+                {
+                    estado: ESTADO_CERRADA,
+                    referencia_pago: paymentRef // Enviamos la referencia opcional
+                },
+                { headers: { Authorization: `Bearer ${userToken}` } }
+            );
+            Alert.alert('Éxito', 'Comanda COBRADA y cerrada.');
             fetchComandas();
         } catch (e) { Alert.alert('Error', 'Fallo al actualizar'); }
-        finally { setIsUpdating(false); }
+        finally { setIsUpdating(false); setSelectedPaymentComandaId(null); }
     };
 
     const getStatusColor = (status) => {
@@ -205,7 +214,7 @@ export const MesoneroDashboard = ({ navigation }) => {
                                 borderColor: '#28a745',
                                 paddingHorizontal: 15
                             }]}
-                            onPress={() => handleMarkClosed(item.comanda_id)}
+                            onPress={() => openPaymentModal(item.comanda_id)} // ABRIR MODAL PAGO
                             disabled={isUpdating}
                         >
                             <Text style={[styles.smallButtonText, { color: '#28a745' }]}>COBRADA</Text>
@@ -270,7 +279,7 @@ export const MesoneroDashboard = ({ navigation }) => {
                 />
             )}
 
-            {/* MODAL Y BOTÓN LOGOUT */}
+            {/* MODAL CANCELACIÓN */}
             <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
                 <View style={styles.centeredView}>
                     <View style={styles.modalView}>
@@ -289,6 +298,30 @@ export const MesoneroDashboard = ({ navigation }) => {
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.modalBtnConfirm} onPress={confirmCancellation}>
                                 <Text style={{ color: 'white', fontWeight: 'bold' }}>Confirmar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* MODAL PAGO (COBRAR) */}
+            <Modal animationType="slide" transparent={true} visible={paymentModalVisible} onRequestClose={() => setPaymentModalVisible(false)}>
+                <View style={styles.centeredView}>
+                    <View style={styles.modalView}>
+                        <Text style={styles.modalTitle}>Cobrar Comanda</Text>
+                        <Text style={{ marginBottom: 10, color: '#666' }}>Ingresa referencia de pago (opcional)</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            placeholder="Ej: Zelle REF-1234, Efectivo..."
+                            value={paymentRef}
+                            onChangeText={setPaymentRef}
+                        />
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setPaymentModalVisible(false)}>
+                                <Text style={{ color: 'white', fontWeight: 'bold' }}>Cancelar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.modalBtnConfirm, { backgroundColor: '#28a745' }]} onPress={confirmPayment}>
+                                <Text style={{ color: 'white', fontWeight: 'bold' }}>COBRAR</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

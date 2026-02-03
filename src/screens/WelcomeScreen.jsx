@@ -24,7 +24,7 @@ const WelcomeScreen = ({ navigation }) => {
     // Estados para registro
     const [restaurantName, setRestaurantName] = useState('');
     const [username, setUsername] = useState('');
-    const [cedula, setCedula] = useState('');
+    // const [cedula, setCedula] = useState(''); // REMOVED
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
@@ -33,14 +33,14 @@ const WelcomeScreen = ({ navigation }) => {
     const [loginPassword, setLoginPassword] = useState('');
 
     const handleRegister = () => {
-        if (!restaurantName || !username || !cedula || !email || !password) {
+        if (!restaurantName || !username || !email || !password) {
             Alert.alert('Error', 'Por favor completa todos los campos');
             return;
         }
         registerRestaurant({
             restaurantName,
             username,
-            cedula,
+            // cedula, // REMOVED
             email,
             password
         });
@@ -100,16 +100,7 @@ const WelcomeScreen = ({ navigation }) => {
                                 />
                             </View>
 
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Cédula</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Ej. 12345678"
-                                    value={cedula}
-                                    onChangeText={setCedula}
-                                    keyboardType="numeric"
-                                />
-                            </View>
+
 
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Correo Electrónico</Text>
