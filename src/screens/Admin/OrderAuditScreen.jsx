@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
@@ -59,6 +60,7 @@ const OrderAuditScreen = ({ navigation }) => {
 
     const [totalSales, setTotalSales] = useState(0);
     const [topProducts, setTopProducts] = useState([]); // Estado para Top Productos
+    const isFocused = useIsFocused();
 
     const { userToken, API_BASE_URL, userName, userRole } = useContext(AuthContext);
 
@@ -293,8 +295,10 @@ const OrderAuditScreen = ({ navigation }) => {
 
         // Polling (Actualización automática, silenciosa)
         const intervalId = setInterval(() => {
-            console.log('Actualizando comandas automáticamente...');
-            loadData();
+            if (isFocused) {
+                console.log('Actualizando comandas automáticamente...');
+                loadData();
+            }
         }, 10000); // 10 segundos
 
         // Función de limpieza
@@ -381,7 +385,7 @@ const OrderAuditScreen = ({ navigation }) => {
     // --- RENDER HEADER (Todo lo que va arriba de la lista y debe scrollear) ---
     const renderHeader = () => (
         <View>
-            <Text style={appStyles.dashboardTitle}>📋 Mis Comandas (Mesonero)</Text>
+            <Text style={appStyles.dashboardTitle}>📋 Mis Comandas</Text>
 
             {/* Pequeño indicador para la primera carga si la lista está vacía */}
             {isLoading && filteredComandas.length === 0 && (

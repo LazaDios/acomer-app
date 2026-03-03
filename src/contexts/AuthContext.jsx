@@ -10,8 +10,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 // --- 1. CONFIGURACIÓN DE LA API ---
 // ***************************************************************
-// !!! IMPORTANTE: CAMBIA 'TU_IP_LOCAL' POR LA IP DE TU PC !!!
-const API_BASE_URL = 'http://172.29.80.1:3000/api/v1'; // Usa la base de tu App.js
+const API_BASE_URL = 'http://192.168.1.39:3000/api/v1'; // Usa la base de tu App.js
 // ***************************************************************
 const TOKEN_KEY = 'user_token';
 const USER_ROLE_KEY = 'user_role';

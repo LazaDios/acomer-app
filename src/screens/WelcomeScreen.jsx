@@ -67,8 +67,8 @@ const WelcomeScreen = ({ navigation }) => {
 
                     <View style={styles.header}>
                         <Image
-                            source={{ uri: 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png' }}
-                            style={styles.logo}
+                            source={require('../../assets/icon.png')}
+                            style={[styles.logo, { width: 150, height: 150 }]}
                         />
                         <Text style={styles.title}>Bienvenido a Acomer</Text>
                         <Text style={styles.subtitle}>

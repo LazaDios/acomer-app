@@ -1,22 +1,24 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AuthContext } from '../../contexts/AuthContext';
-import { styles } from '../../styles/AppStyles'; 
+import { styles } from '../../styles/AppStyles';
 
 // Estados Sincronizados
 const ESTADO_PREPARANDO = 'Preparando'; // Nota: Usamos la capitalización de la API
-const ESTADO_FINALIZADA = 'Finalizada'; 
+const ESTADO_FINALIZADA = 'Finalizada';
 const ESTADO_ABIERTA = 'Abierta';
 const ESTADO_CANCELADA = 'Cancelada'; // El cocinero debe verlas para referencia
 
 export const CocineroDashboard = ({ navigation }) => {
-    const { userToken, API_BASE_URL, logout } = useContext(AuthContext); 
-    
+    const { userToken, API_BASE_URL, logout } = useContext(AuthContext);
+
     const [comandas, setComandas] = useState([]);
-    const [isListLoading, setIsListLoading] = useState(true); 
+    const [isListLoading, setIsListLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const isFocused = useIsFocused();
 
     const getPriority = (status) => {
         // PRIORIDAD DEL COCINERO: 
@@ -24,21 +26,21 @@ export const CocineroDashboard = ({ navigation }) => {
         // 2. PREPARANDO (En progreso)
         // 3. CANCELADA (Al final)
         switch (status) {
-            case ESTADO_ABIERTA: return 1; 
-            case ESTADO_PREPARANDO: return 2; 
-            case ESTADO_CANCELADA: return 3; 
+            case ESTADO_ABIERTA: return 1;
+            case ESTADO_PREPARANDO: return 2;
+            case ESTADO_CANCELADA: return 3;
             default: return 4;
         }
     };
 
     const fetchCocineroComandas = useCallback(async () => {
-        setIsListLoading(true); 
+        setIsListLoading(true);
         try {
             // USAMOS EL ENDPOINT ESPECÍFICO DEL COCINERO
             const response = await axios.get(`${API_BASE_URL}/detalle-comandas/cocinero/pendientes`, {
                 headers: { Authorization: `Bearer ${userToken}` },
             });
-            
+
             let fetchedComandas = response.data;
 
             fetchedComandas.sort((a, b) => {
@@ -46,12 +48,12 @@ export const CocineroDashboard = ({ navigation }) => {
                 const priorityB = getPriority(b.estado_comanda);
                 if (priorityA !== priorityB) return priorityA - priorityB;
                 // Desempate: la más antigua primero (para cocinar)
-                return new Date(a.fecha_hora_comanda).getTime() - new Date(b.fecha_hora_comanda).getTime(); 
+                return new Date(a.fecha_hora_comanda).getTime() - new Date(b.fecha_hora_comanda).getTime();
             });
 
             // Filtramos las FINALIZADA aquí, ya que el cocinero no debería verlas por mucho tiempo
-            setComandas(fetchedComandas.filter(c => c.estado_comanda !== ESTADO_FINALIZADA)); 
-            
+            setComandas(fetchedComandas.filter(c => c.estado_comanda !== ESTADO_FINALIZADA));
+
         } catch (error) {
             console.error('Error al cargar comandas:', error.response?.data || error.message);
         } finally {
@@ -65,18 +67,18 @@ export const CocineroDashboard = ({ navigation }) => {
         fetchCocineroComandas();
 
         const interval = setInterval(() => {
-            if (!isUpdating) { 
+            if (!isUpdating && isFocused) {
                 fetchCocineroComandas();
             }
-        }, 10000); 
+        }, 10000);
 
         const unsubscribeFocus = navigation.addListener('focus', fetchCocineroComandas);
-        
+
         return () => {
             clearInterval(interval);
             unsubscribeFocus();
         };
-    }, [fetchCocineroComandas, isUpdating, navigation]); 
+    }, [fetchCocineroComandas, isUpdating, navigation]);
 
 
     // Función para cambiar el estado de la comanda
@@ -91,7 +93,7 @@ export const CocineroDashboard = ({ navigation }) => {
             });
 
             Alert.alert('Éxito', successMessage);
-            fetchCocineroComandas(); 
+            fetchCocineroComandas();
         } catch (error) {
             console.error(errorMessage, error.response?.data || error.message);
             Alert.alert('Error', errorMessage);
@@ -104,8 +106,8 @@ export const CocineroDashboard = ({ navigation }) => {
     // Acciones del Cocinero:
     const handleStartPreparation = (comandaId) => {
         updateComandaStatus(
-            comandaId, 
-            ESTADO_PREPARANDO, 
+            comandaId,
+            ESTADO_PREPARANDO,
             `Comanda #${comandaId}: Preparación INICIADA.`,
             'No se pudo iniciar la preparación.'
         );
@@ -113,8 +115,8 @@ export const CocineroDashboard = ({ navigation }) => {
 
     const handleMarkReady = (comandaId) => {
         updateComandaStatus(
-            comandaId, 
-            ESTADO_FINALIZADA, 
+            comandaId,
+            ESTADO_FINALIZADA,
             `Comanda #${comandaId}: ¡LISTA para ser despachada!`,
             'No se pudo marcar como lista.'
         );
@@ -149,7 +151,7 @@ export const CocineroDashboard = ({ navigation }) => {
     const renderComanda = ({ item }) => (
         <View style={[
             styles.orderCard,
-            { borderColor: getStatusColor(item.estado_comanda), borderWidth: 2, paddingBottom: 10 } 
+            { borderColor: getStatusColor(item.estado_comanda), borderWidth: 2, paddingBottom: 10 }
         ]}>
             <View style={styles.orderHeader}>
                 <Text style={[styles.orderTitle, { color: getStatusColor(item.estado_comanda) }]}>
@@ -159,7 +161,7 @@ export const CocineroDashboard = ({ navigation }) => {
                     <Text style={styles.orderStatusText}>{item.estado_comanda.toUpperCase()}</Text>
                 </View>
             </View>
-            
+
             <Text style={styles.orderDetailText}>Mesonero: {item.nombre_mesonero || 'N/A'}</Text>
             <Text style={styles.orderDetailText}>Hora: {new Date(item.fecha_hora_comanda).toLocaleTimeString()}</Text>
 
@@ -201,13 +203,13 @@ export const CocineroDashboard = ({ navigation }) => {
             <Text style={[styles.dashboardTitle, { marginTop: 35 }]}>
                 🍳 Dashboard del Cocinero
             </Text>
-            
+
             <Text style={styles.sectionTitleOperative}>
                 Órdenes Pendientes (Actualización cada 10s)
             </Text>
 
             {isListLoading && comandas.length === 0 ? (
-                 <View style={styles.loadingContainer}>
+                <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#dc3545" />
                     <Text style={styles.loadingText}>Buscando nuevos pedidos...</Text>
                 </View>
@@ -224,9 +226,9 @@ export const CocineroDashboard = ({ navigation }) => {
                     contentContainerStyle={{ paddingBottom: 20, marginTop: 10 }}
                     style={{ flex: 1 }}
                     refreshControl={
-                        <RefreshControl 
-                            refreshing={isListLoading && comandas.length > 0} 
-                            onRefresh={fetchCocineroComandas} 
+                        <RefreshControl
+                            refreshing={isListLoading && comandas.length > 0}
+                            onRefresh={fetchCocineroComandas}
                             colors={['#dc3545']}
                         />
                     }
@@ -237,7 +239,7 @@ export const CocineroDashboard = ({ navigation }) => {
             <TouchableOpacity
                 style={[styles.button, { backgroundColor: '#6c757d', marginTop: 15 }]}
                 onPress={() => Alert.alert(
-                    'Cerrar Sesión', 
+                    'Cerrar Sesión',
                     '¿Estás seguro que quieres salir?',
                     [{ text: 'No', style: 'cancel' }, { text: 'Sí', onPress: logout }]
                 )}

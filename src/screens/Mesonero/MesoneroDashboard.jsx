@@ -4,6 +4,7 @@ import {
     View, Text, FlatList, TouchableOpacity, Alert,
     ActivityIndicator, RefreshControl, Modal, TextInput
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -23,6 +24,7 @@ export const MesoneroDashboard = ({ navigation }) => {
     const [tasaCambio, setTasaCambio] = useState(0); // Nuevo estado para la tasa
     const [isListLoading, setIsListLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const isFocused = useIsFocused();
 
     // Estados Modal Cancelación
     const [modalVisible, setModalVisible] = useState(false);
@@ -87,7 +89,7 @@ export const MesoneroDashboard = ({ navigation }) => {
         fetchComandas();
         fetchTasa(); // Cargar la tasa al iniciar
         const interval = setInterval(() => {
-            if (!isUpdating && !modalVisible && !paymentModalVisible) {
+            if (!isUpdating && !modalVisible && !paymentModalVisible && isFocused) {
                 fetchComandas();
                 fetchTasa(); // Actualizar tasa periódicamente también
             }
