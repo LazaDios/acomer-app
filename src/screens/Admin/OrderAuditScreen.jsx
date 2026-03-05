@@ -4,6 +4,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles as appStyles } from '../../styles/AppStyles'; // Usamos un alias para los estilos globales
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -196,7 +197,6 @@ const OrderAuditScreen = ({ navigation }) => {
 
         const rows = closedComandas.map(comanda => `
             <tr>
-                <td>#${comanda.comanda_id}</td>
                 <td>${comanda.mesa}</td>
                 <td>${comanda.nombre_mesonero || 'N/A'}</td>
                 <td style="text-align: right;">$${parseFloat(comanda.total_comanda).toFixed(2)}</td>
@@ -237,7 +237,6 @@ const OrderAuditScreen = ({ navigation }) => {
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Mesa</th>
                             <th>Mesonero</th>
                             <th style="text-align: right;">Total Comanda</th>
@@ -249,7 +248,7 @@ const OrderAuditScreen = ({ navigation }) => {
                     </tbody>
                     <tfoot>
                         <tr class="total-row">
-                            <td colspan="3">Total General de Ventas Cerradas:</td>
+                            <td colspan="2">Total General de Ventas Cerradas:</td>
                             <td style="text-align: right;">$${total.toFixed(2)}</td>
                             <td></td>
                         </tr>
@@ -287,26 +286,36 @@ const OrderAuditScreen = ({ navigation }) => {
     };
 
     // --- LÓGICA DE USE EFFECT ---
+    // Efecto 1: carga inicial + focus
     useEffect(() => {
-        const loadData = () => fetchAllComandas();
-        loadData();
-
-        const unsubscribeFocus = navigation.addListener('focus', loadData);
-
-        // Polling (Actualización automática, silenciosa)
-        const intervalId = setInterval(() => {
-            if (isFocused) {
-                console.log('Actualizando comandas automáticamente...');
-                loadData();
-            }
-        }, 10000); // 10 segundos
-
-        // Función de limpieza
-        return () => {
-            unsubscribeFocus();
-            clearInterval(intervalId);
-        };
+        fetchAllComandas();
+        const unsubscribeFocus = navigation.addListener('focus', fetchAllComandas);
+        return () => unsubscribeFocus();
     }, [navigation, userToken, API_BASE_URL]);
+
+    // Efecto 2: WebSocket estable (no depende de estados volátiles)
+    useEffect(() => {
+        const socketUrl = API_BASE_URL.replace('/api/v1', '');
+        const socket = io(socketUrl, {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionDelay: 2000,
+            reconnectionAttempts: 5,
+        });
+
+        socket.on('connect', () => console.log('✅ WS conectado en OrderAuditScreen'));
+        socket.on('comandaUpdated', fetchAllComandas);
+        socket.on('comandaToKitchen', fetchAllComandas);
+        socket.on('comandaToWaiter', fetchAllComandas);
+        socket.on('comandaCanceladaToKitchen', fetchAllComandas);
+        socket.on('comandaCanceladaToWaiter', fetchAllComandas);
+        socket.on('connect_error', (err) => console.warn('⚠️ WS error Admin:', err.message));
+
+        return () => {
+            socket.disconnect();
+            console.log('🔌 WS desconectado en OrderAuditScreen');
+        };
+    }, [API_BASE_URL]);
 
     // useEffect para FILTRADO y CÁLCULO
     useEffect(() => {
@@ -328,7 +337,28 @@ const OrderAuditScreen = ({ navigation }) => {
     const handleDateChange = (event, selectedDate) => {
         setPickerVisible(false);
         if (event.type === 'set' && selectedDate) {
-            currentDateSetter(selectedDate);
+            // --- VALIDACIÓN DE FECHAS ---
+            const isSettingStart = currentDateSetter === setStartDate;
+            if (isSettingStart) {
+                // La fecha inicio no puede ser mayor que la fecha fin
+                if (selectedDate > endDate) {
+                    Alert.alert('Fecha inválida', 'La fecha de inicio no puede ser posterior a la fecha de fin.');
+                    return;
+                }
+                setStartDate(selectedDate);
+            } else {
+                // La fecha fin no puede ser menor que la fecha inicio
+                if (selectedDate < startDate) {
+                    Alert.alert('Fecha inválida', 'La fecha de fin no puede ser anterior a la fecha de inicio.');
+                    return;
+                }
+                // La fecha fin no puede ser futura
+                if (selectedDate > new Date()) {
+                    Alert.alert('Fecha inválida', 'La fecha de fin no puede ser una fecha futura.');
+                    return;
+                }
+                setEndDate(selectedDate);
+            }
         }
     };
 
@@ -379,6 +409,14 @@ const OrderAuditScreen = ({ navigation }) => {
                     Referencia: <Text style={{ fontWeight: 'bold', color: '#333' }}>{item.referencia_pago}</Text>
                 </Text>
             )}
+
+            {/* Motivo de Cancelación */}
+            {item.motivo_cancelacion && (
+                <View style={{ marginTop: 8, backgroundColor: '#fff3cd', borderRadius: 6, padding: 8, borderLeftWidth: 3, borderLeftColor: '#dc3545' }}>
+                    <Text style={{ fontSize: 12, color: '#856404', fontWeight: 'bold' }}>⚠️ Motivo de cancelación:</Text>
+                    <Text style={{ fontSize: 13, color: '#664d03', marginTop: 2 }}>{item.motivo_cancelacion}</Text>
+                </View>
+            )}
         </TouchableOpacity>
     );
 
@@ -408,64 +446,45 @@ const OrderAuditScreen = ({ navigation }) => {
                 </Picker>
             </View>
 
-            {/* Controles de Fecha (Mismo renglón) */}
-            {(selectedStatus === 'Cerrada' || selectedStatus === 'TODAS') && (
-                <View style={[appStyles.dateFilterContainer, { marginBottom: 15 }]}>
-                    <Text style={appStyles.summaryLabel}>Rango de Búsqueda:</Text>
+            {/* Controles de Fecha - SIEMPRE VISIBLES */}
+            <View style={[appStyles.dateFilterContainer, { marginBottom: 15 }]}>
+                <Text style={appStyles.summaryLabel}>Rango de Búsqueda:</Text>
 
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 }}>
-                        {/* Fecha Inicio */}
-                        <TouchableOpacity onPress={() => showPicker(setStartDate)} style={[appStyles.dateButton, { flex: 1, marginRight: 5, marginBottom: 0 }]}>
-                            <MaterialIcons name="event" size={20} color="#007bff" />
-                            <Text style={appStyles.dateButtonText} numberOfLines={1}>
-                                {formatDate(startDate)}
-                            </Text>
-                        </TouchableOpacity>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 }}>
+                    {/* Fecha Inicio */}
+                    <TouchableOpacity onPress={() => showPicker(setStartDate)} style={[appStyles.dateButton, { flex: 1, marginRight: 5, marginBottom: 0 }]}>
+                        <MaterialIcons name="event" size={20} color="#007bff" />
+                        <Text style={appStyles.dateButtonText} numberOfLines={1}>
+                            {formatDate(startDate)}
+                        </Text>
+                    </TouchableOpacity>
 
-                        <Text style={{ marginHorizontal: 5, color: '#666' }}>al</Text>
+                    <Text style={{ marginHorizontal: 5, color: '#666' }}>al</Text>
 
-                        <TouchableOpacity onPress={() => showPicker(setEndDate)} style={[appStyles.dateButton, { flex: 1, marginLeft: 5, marginBottom: 0 }]}>
-                            <MaterialIcons name="event" size={20} color="#007bff" />
-                            <Text style={appStyles.dateButtonText} numberOfLines={1}>
-                                {formatDate(endDate)}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {isPickerVisible && (
-                        <DateTimePicker
-                            value={new Date()}
-                            mode="date"
-                            display="default"
-                            onChange={handleDateChange}
-                        />
-                    )}
+                    <TouchableOpacity onPress={() => showPicker(setEndDate)} style={[appStyles.dateButton, { flex: 1, marginLeft: 5, marginBottom: 0 }]}>
+                        <MaterialIcons name="event" size={20} color="#007bff" />
+                        <Text style={appStyles.dateButtonText} numberOfLines={1}>
+                            {formatDate(endDate)}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
-            )}
 
-            {/* METRICA: Total de Ventas CERRADAS */}
-            {(selectedStatus === 'Cerrada' || selectedStatus === 'TODAS') && (
+                {isPickerVisible && (
+                    <DateTimePicker
+                        value={new Date()}
+                        mode="date"
+                        display="default"
+                        onChange={handleDateChange}
+                    />
+                )}
+            </View>
+
+            {/* METRICA + PDF: Solo para comandas Cerradas */}
+            {selectedStatus === 'Cerrada' && (
                 <>
-                    {/* --- SECCIÓN PRODUCTOS MÁS VENDIDOS --- */}
-                    <View style={{ marginBottom: 15, backgroundColor: '#fff', padding: 15, borderRadius: 8, elevation: 2 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10 }}>🏆 Productos Más Vendidos</Text>
-                        {topProducts.length === 0 ? (
-                            <Text style={{ fontStyle: 'italic', color: '#666', fontSize: 12 }}>No hay suficientes datos.</Text>
-                        ) : (
-                            topProducts.map((prod, index) => (
-                                <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingBottom: 4 }}>
-                                    <Text style={{ flex: 1, color: '#444', fontSize: 13 }}>
-                                        <Text style={{ fontWeight: 'bold' }}>#{index + 1}</Text> {prod.name}
-                                    </Text>
-                                    <Text style={{ fontWeight: 'bold', color: '#007bff', fontSize: 13 }}>{prod.qty}</Text>
-                                </View>
-                            ))
-                        )}
-                    </View>
-
                     <View style={appStyles.summaryBox}>
                         <Text style={appStyles.summaryLabel}>
-                            Total ({formatDate(startDate)} - {formatDate(endDate)}):
+                            💵 Total Cerradas ({formatDate(startDate)} - {formatDate(endDate)}):
                         </Text>
                         <Text style={appStyles.summaryValue}>${totalSales.toFixed(2)}</Text>
                     </View>

@@ -8,7 +8,7 @@ import { styles } from '../../styles/AppStyles';
 
 export const ComandaDetailsViewer = ({ route, navigation }) => {
     // 1. Obtener datos de la ruta (ya vienen con los detalles y la relación 'producto')
-    const { comandaId, mesa, detallesComanda, totalComanda } = route.params;
+    const { comandaId, mesa, detallesComanda, totalComanda, nombreMesonero } = route.params;
 
     const total = parseFloat(totalComanda || 0).toFixed(2);
     const details = detallesComanda || []; // Aseguramos que sea un array
@@ -18,7 +18,10 @@ export const ComandaDetailsViewer = ({ route, navigation }) => {
     return (
         <View style={styles.dashboardContainer}>
             <Text style={styles.dashboardTitle}>Pedido: Mesa {mesa} (ID: {comandaId})</Text>
-            
+            <Text style={[styles.orderDetailText, { marginBottom: 15, fontStyle: 'italic', fontSize: 16 }]}>
+                👤 Responsable: {nombreMesonero || 'N/A'}
+            </Text>
+
             <Text style={styles.sectionTitle}>Productos Solicitados</Text>
 
             <FlatList
@@ -57,7 +60,7 @@ export const ComandaDetailsViewer = ({ route, navigation }) => {
                 <Text style={styles.summaryLabel}>TOTAL DE LA COMANDA:</Text>
                 <Text style={styles.summaryValue}>${total}</Text>
             </View>
-            
+
             {/* Botón de Regreso */}
             <TouchableOpacity
                 style={[styles.button, { backgroundColor: '#6c757d', marginTop: 20 }]}

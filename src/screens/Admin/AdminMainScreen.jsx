@@ -101,6 +101,15 @@ const AdminMainScreen = ({ navigation }) => {
           <Text style={[styles.dashboardButtonText, { color: '#333' }]}>Auditoría de Comandas</Text>
         </TouchableOpacity>
 
+        {/* 4. Botón para Lo Más Vendido */}
+        <TouchableOpacity
+          style={[styles.dashboardButton, styles.adminButtonBase, { backgroundColor: '#e83e8c' }]}
+          onPress={() => navigation.navigate('TopProducts')}
+        >
+          <MaterialIcons name="leaderboard" size={24} color="#fff" />
+          <Text style={styles.dashboardButtonText}>Lo Más Vendido</Text>
+        </TouchableOpacity>
+
         <Text style={[styles.infoText, { marginTop: 20 }]}>Gestión general del restaurante.</Text>
 
         {/* MODAL PARA TASA DE CAMBIO */}

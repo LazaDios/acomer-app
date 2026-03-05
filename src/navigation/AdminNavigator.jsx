@@ -6,7 +6,8 @@ import { ProductManagementScreen, ProductFormScreen } from '../screens/Admin/Pro
 import OrderAuditScreen from '../screens/Admin/OrderAuditScreen';
 import OrderDetailsScreen from '../screens/Admin/OrderDetailsScreen';
 
-import UserManagementScreen from '../screens/Admin/UserManagementScreen'; // Importar Nueva Pantalla
+import UserManagementScreen from '../screens/Admin/UserManagementScreen';
+import TopProductsScreen from '../screens/Admin/TopProductsScreen';
 
 const AdminStack = createNativeStackNavigator();
 
@@ -66,6 +67,12 @@ export const AdminNavigator = () => (
       name="OrderDetails" // 👈 ESTE ES EL NOMBRE REGISTRADO CORRECTO
       component={OrderDetailsScreen}
       options={{ title: 'Detalles de la Comanda' }}
+    />
+    {/* 7. Top Productos Más Vendidos */}
+    <AdminStack.Screen
+      name="TopProducts"
+      component={TopProductsScreen}
+      options={{ title: 'Lo Más Vendido' }}
     />
   </AdminStack.Navigator>
 

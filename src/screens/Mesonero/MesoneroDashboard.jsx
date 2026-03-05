@@ -4,9 +4,11 @@ import {
     View, Text, FlatList, TouchableOpacity, Alert,
     ActivityIndicator, RefreshControl, Modal, TextInput
 } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useNavigation as _unused } from '@react-navigation/native'; // keep import to avoid breaking other things
+// Note: navigation comes from props
 import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles';
 
@@ -18,13 +20,12 @@ const ESTADO_CANCELADA = 'Cancelada';
 
 export const MesoneroDashboard = ({ navigation }) => {
     // Extraemos userData para obtener el nombre
-    const { userToken, API_BASE_URL, logout, restaurant, userRole } = useContext(AuthContext);
+    const { userToken, API_BASE_URL, logout, restaurant, userRole, userData } = useContext(AuthContext);
 
     const [comandas, setComandas] = useState([]);
     const [tasaCambio, setTasaCambio] = useState(0); // Nuevo estado para la tasa
     const [isListLoading, setIsListLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
-    const isFocused = useIsFocused();
 
     // Estados Modal Cancelación
     const [modalVisible, setModalVisible] = useState(false);
@@ -60,8 +61,8 @@ export const MesoneroDashboard = ({ navigation }) => {
         }
     }, [userToken, API_BASE_URL, restaurant]);
 
-    const fetchComandas = useCallback(async () => {
-        setIsListLoading(true);
+    const fetchComandas = useCallback(async (silent = false) => {
+        if (!silent) setIsListLoading(true);
         try {
             const response = await axios.get(`${API_BASE_URL}/detalle-comandas/mesonero/pendientes`, {
                 headers: { Authorization: `Bearer ${userToken}` },
@@ -81,29 +82,45 @@ export const MesoneroDashboard = ({ navigation }) => {
         } catch (error) {
             console.error('Error al cargar comandas:', error.response?.data || error.message);
         } finally {
-            setIsListLoading(false);
+            if (!silent) setIsListLoading(false);
         }
     }, [userToken, API_BASE_URL]);
 
+    // Efecto 1: Carga inicial + listener de navegación (focus)
     useEffect(() => {
         fetchComandas();
-        fetchTasa(); // Cargar la tasa al iniciar
-        const interval = setInterval(() => {
-            if (!isUpdating && !modalVisible && !paymentModalVisible && isFocused) {
-                fetchComandas();
-                fetchTasa(); // Actualizar tasa periódicamente también
-            }
-        }, 10000);
-
+        fetchTasa();
         const unsubscribeFocus = navigation.addListener('focus', () => {
             fetchComandas();
             fetchTasa();
         });
+        return () => unsubscribeFocus();
+    }, [fetchComandas, fetchTasa, navigation]);
+
+    // Efecto 2: WebSocket estable — NO depende de estados volátiles
+    useEffect(() => {
+        const socketUrl = API_BASE_URL.replace('/api/v1', '');
+        const socket = io(socketUrl, {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionDelay: 2000,
+            reconnectionAttempts: 5,
+        });
+
+        socket.on('connect', () => console.log('✅ WS conectado en MesoneroDashboard'));
+        // Usamos silent=true para no mostrar spinner en actualizaciones en tiempo real
+        socket.on('comandaUpdated', () => fetchComandas(true));
+        socket.on('comandaToKitchen', () => fetchComandas(true));
+        socket.on('comandaToWaiter', () => fetchComandas(true));
+        socket.on('comandaCanceladaToKitchen', () => fetchComandas(true));
+        socket.on('comandaCanceladaToWaiter', () => fetchComandas(true));
+        socket.on('connect_error', (err) => console.warn('⚠️ WS error Mesonero:', err.message));
+
         return () => {
-            clearInterval(interval);
-            unsubscribeFocus();
+            socket.disconnect();
+            console.log('🔌 WS desconectado en MesoneroDashboard');
         };
-    }, [fetchComandas, fetchTasa, isUpdating, modalVisible, paymentModalVisible, navigation]);
+    }, [API_BASE_URL]); // Solo se recrea si cambia la URL
 
     const openCancelModal = (id) => {
         setTargetComandaId(id);
@@ -167,8 +184,20 @@ export const MesoneroDashboard = ({ navigation }) => {
     };
 
     const renderComanda = ({ item }) => {
-        const esEditable = item.estado_comanda === ESTADO_ABIERTA || item.estado_comanda === ESTADO_PREPARANDO;
-        const esCancelable = item.estado_comanda !== ESTADO_FINALIZADA && item.estado_comanda !== ESTADO_CANCELADA;
+        // Lógica de Propiedad Robusta: ID o Nombre Completo
+        const myId = userData?.id_usuario;
+        const myName = userData?.nombre_completo?.trim().toLowerCase();
+
+        const creatorId = item.id_usuario || item.usuario?.id_usuario;
+        const creatorName = (item.nombre_mesonero || item.usuario?.nombre_completo)?.trim().toLowerCase();
+
+        const esDuenio = (myId && creatorId && String(myId) === String(creatorId)) ||
+            (myName && creatorName && myName === creatorName);
+
+        const esEditable = esDuenio && item.estado_comanda === ESTADO_ABIERTA;
+        const esCancelable = esDuenio && item.estado_comanda !== ESTADO_FINALIZADA && item.estado_comanda !== ESTADO_CANCELADA;
+        const esCobrable = esDuenio && item.estado_comanda === ESTADO_FINALIZADA;
+
         const totalUsd = parseFloat(item.total_comanda || 0);
         const totalBs = tasaCambio > 0 ? (totalUsd * tasaCambio).toFixed(2) : null;
 
@@ -179,6 +208,12 @@ export const MesoneroDashboard = ({ navigation }) => {
                     <View style={[styles.orderStatusPill, { backgroundColor: getStatusColor(item.estado_comanda) }]}>
                         <Text style={styles.orderStatusText}>{item.estado_comanda.toUpperCase()}</Text>
                     </View>
+                </View>
+
+                <View style={{ marginBottom: 5 }}>
+                    <Text style={[styles.orderDetailText, { color: '#666', fontStyle: 'italic' }]}>
+                        👤 Mesonero: {item.nombre_mesonero || 'N/A'}
+                    </Text>
                 </View>
 
                 {/* PRECIOS EN AMBAS MONEDAS */}
@@ -201,14 +236,20 @@ export const MesoneroDashboard = ({ navigation }) => {
                         }]}
                         onPress={() => {
                             if (esEditable) navigation.navigate('ComandaDetailsEditor', { comandaId: item.comanda_id, mesa: item.mesa });
-                            else navigation.navigate('ComandaDetailsViewer', { comandaId: item.comanda_id, mesa: item.mesa, detallesComanda: item.detallesComanda, totalComanda: item.total_comanda });
+                            else navigation.navigate('ComandaDetailsViewer', {
+                                comandaId: item.comanda_id,
+                                mesa: item.mesa,
+                                detallesComanda: item.detallesComanda,
+                                totalComanda: item.total_comanda,
+                                nombreMesonero: item.nombre_mesonero
+                            });
                         }}
                         disabled={isUpdating}
                     >
                         <Text style={[styles.smallButtonText, { color: esEditable ? '#007bff' : '#17a2b8' }]}>{esEditable ? 'EDITAR' : 'VER DETALLES'}</Text>
                     </TouchableOpacity>
 
-                    {item.estado_comanda === ESTADO_FINALIZADA && (
+                    {esCobrable && (
                         <TouchableOpacity
                             style={[styles.smallButton, {
                                 backgroundColor: 'transparent',
@@ -241,7 +282,7 @@ export const MesoneroDashboard = ({ navigation }) => {
                         </TouchableOpacity>
                     )}
                 </View>
-            </View>
+            </View >
         );
     };
 
@@ -249,7 +290,7 @@ export const MesoneroDashboard = ({ navigation }) => {
         <View style={styles.dashboardContainer}>
             {/* 1. TÍTULO PERSONALIZADO */}
             <Text style={styles.dashboardTitle}>
-                Hola, Mesonero ({userRole || 'Staff'})
+                Hola, Mesonero {userData?.nombre_completo || userData?.username || ''}
             </Text>
 
             {/* 2. BOTÓN DE CREAR COMANDA (Ahora arriba y ancho completo) */}

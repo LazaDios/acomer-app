@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useNavigation as _unused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles';
 
@@ -13,12 +14,11 @@ const ESTADO_ABIERTA = 'Abierta';
 const ESTADO_CANCELADA = 'Cancelada'; // El cocinero debe verlas para referencia
 
 export const CocineroDashboard = ({ navigation }) => {
-    const { userToken, API_BASE_URL, logout } = useContext(AuthContext);
+    const { userToken, API_BASE_URL, logout, userData } = useContext(AuthContext);
 
     const [comandas, setComandas] = useState([]);
     const [isListLoading, setIsListLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
-    const isFocused = useIsFocused();
 
     const getPriority = (status) => {
         // PRIORIDAD DEL COCINERO: 
@@ -33,10 +33,9 @@ export const CocineroDashboard = ({ navigation }) => {
         }
     };
 
-    const fetchCocineroComandas = useCallback(async () => {
-        setIsListLoading(true);
+    const fetchCocineroComandas = useCallback(async (silent = false) => {
+        if (!silent) setIsListLoading(true);
         try {
-            // USAMOS EL ENDPOINT ESPECÍFICO DEL COCINERO
             const response = await axios.get(`${API_BASE_URL}/detalle-comandas/cocinero/pendientes`, {
                 headers: { Authorization: `Bearer ${userToken}` },
             });
@@ -47,38 +46,47 @@ export const CocineroDashboard = ({ navigation }) => {
                 const priorityA = getPriority(a.estado_comanda);
                 const priorityB = getPriority(b.estado_comanda);
                 if (priorityA !== priorityB) return priorityA - priorityB;
-                // Desempate: la más antigua primero (para cocinar)
                 return new Date(a.fecha_hora_comanda).getTime() - new Date(b.fecha_hora_comanda).getTime();
             });
 
-            // Filtramos las FINALIZADA aquí, ya que el cocinero no debería verlas por mucho tiempo
             setComandas(fetchedComandas.filter(c => c.estado_comanda !== ESTADO_FINALIZADA));
 
         } catch (error) {
             console.error('Error al cargar comandas:', error.response?.data || error.message);
         } finally {
-            setIsListLoading(false);
+            if (!silent) setIsListLoading(false);
         }
     }, [userToken, API_BASE_URL]);
 
 
-    // Polling (Actualización cada 10 segundos)
+    // Efecto 1: Carga inicial + focus
     useEffect(() => {
         fetchCocineroComandas();
-
-        const interval = setInterval(() => {
-            if (!isUpdating && isFocused) {
-                fetchCocineroComandas();
-            }
-        }, 10000);
-
         const unsubscribeFocus = navigation.addListener('focus', fetchCocineroComandas);
+        return () => unsubscribeFocus();
+    }, [fetchCocineroComandas, navigation]);
+
+    // Efecto 2: WebSocket estable
+    useEffect(() => {
+        const socketUrl = API_BASE_URL.replace('/api/v1', '');
+        const socket = io(socketUrl, {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionDelay: 2000,
+            reconnectionAttempts: 5,
+        });
+
+        socket.on('connect', () => console.log('✅ WS conectado en CocineroDashboard'));
+        socket.on('comandaUpdated', () => fetchCocineroComandas(true));
+        socket.on('comandaToKitchen', () => fetchCocineroComandas(true));
+        socket.on('comandaCanceladaToKitchen', () => fetchCocineroComandas(true));
+        socket.on('connect_error', (err) => console.warn('⚠️ WS error Cocinero:', err.message));
 
         return () => {
-            clearInterval(interval);
-            unsubscribeFocus();
+            socket.disconnect();
+            console.log('🔌 WS desconectado en CocineroDashboard');
         };
-    }, [fetchCocineroComandas, isUpdating, navigation]);
+    }, [API_BASE_URL]);
 
 
     // Función para cambiar el estado de la comanda
@@ -171,6 +179,14 @@ export const CocineroDashboard = ({ navigation }) => {
             </View>
             {item.detallesComanda.map(renderDetailItem)}
 
+            {/* Motivo de Cancelación (solo si existe) */}
+            {item.motivo_cancelacion && (
+                <View style={{ marginTop: 8, backgroundColor: '#fff3cd', borderRadius: 6, padding: 8, borderLeftWidth: 3, borderLeftColor: '#dc3545' }}>
+                    <Text style={{ fontSize: 12, color: '#856404', fontWeight: 'bold' }}>⚠️ Motivo de cancelación:</Text>
+                    <Text style={{ fontSize: 13, color: '#664d03', marginTop: 2 }}>{item.motivo_cancelacion}</Text>
+                </View>
+            )}
+
             {/* ACCIONES DEL COCINERO */}
             <View style={styles.orderActions}>
                 {/* 1. Botón INICIAR PREPARACIÓN (Solo visible si está ABIERTA) */}
@@ -201,7 +217,7 @@ export const CocineroDashboard = ({ navigation }) => {
     return (
         <View style={styles.dashboardContainer}>
             <Text style={[styles.dashboardTitle, { marginTop: 35 }]}>
-                🍳 Dashboard del Cocinero
+                🍳 Hola, Cocinero {userData?.username || ''}
             </Text>
 
             <Text style={styles.sectionTitleOperative}>

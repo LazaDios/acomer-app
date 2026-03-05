@@ -15,6 +15,7 @@ const API_BASE_URL = 'http://192.168.1.39:3000/api/v1'; // Usa la base de tu App
 const TOKEN_KEY = 'user_token';
 const USER_ROLE_KEY = 'user_role';
 const RESTAURANT_KEY = 'restaurant_data';
+const USER_DATA_KEY = 'user_data';
 
 // Mapeo de roles 
 export const AVAILABLE_ROLES = ['administrador', 'cocinero', 'mesonero'];
@@ -26,6 +27,7 @@ export const AuthProvider = ({ children }) => {
   const [userToken, setUserToken] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [restaurant, setRestaurant] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Configuración de Google Auth (Mantenemos por si acaso, pero no se usará principalmente)
@@ -47,6 +49,9 @@ export const AuthProvider = ({ children }) => {
         if (token && role) {
           setUserToken(token);
           setUserRole(role);
+
+          const storedUser = await SecureStore.getItemAsync(USER_DATA_KEY);
+          if (storedUser) setUserData(JSON.parse(storedUser));
 
           // Solo restauramos el restaurante si hay un usuario logueado
           if (storedRestaurant) {
@@ -88,9 +93,11 @@ export const AuthProvider = ({ children }) => {
       if (accessToken && role) {
         await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
         await SecureStore.setItemAsync(USER_ROLE_KEY, role);
+        await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(response.data.usuario));
 
         setUserToken(accessToken);
         setUserRole(role);
+        setUserData(response.data.usuario);
         Alert.alert('Éxito', 'Inicio de sesión exitoso. Redirigiendo...');
       } else {
         Alert.alert('Error', 'Respuesta de la API incompleta.');
@@ -217,8 +224,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_ROLE_KEY);
+    await SecureStore.deleteItemAsync(USER_DATA_KEY);
     setUserToken(null);
     setUserRole(null);
+    setUserData(null);
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente.');
   };
 
@@ -232,7 +241,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ userToken, userRole, restaurant, login, loginWithGoogle, registerRestaurant, logout, changeRestaurant, activateRestaurant: activateRestaurantPromise, isLoading, API_BASE_URL }}>
+    <AuthContext.Provider value={{ userToken, userRole, userData, restaurant, login, loginWithGoogle, registerRestaurant, logout, changeRestaurant, activateRestaurant: activateRestaurantPromise, isLoading, API_BASE_URL }}>
       {children}
     </AuthContext.Provider>
   );
