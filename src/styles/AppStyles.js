@@ -215,10 +215,9 @@ export const styles = StyleSheet.create({
     padding: 15,
     marginVertical: 8,
     borderRadius: 10,
-    elevation: 3,
+    elevation: 1, // Reducido para estabilidad
     borderLeftWidth: 5,
     borderLeftColor: COLORS.border,
-    // borderLeftColor se sobreescribe dinámicamente en el componente
   },
   highlightedCard: {
     borderLeftColor: COLORS.warning,
@@ -556,12 +555,8 @@ export const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
     padding: 15,
-    marginBottom: 10, // Para separar las tarjetas entre sí
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    marginBottom: 10,
+    elevation: 1, // Reducido para evitar crashes al scrollear
   },
 
   // 2. Modifica el contenedor de las acciones

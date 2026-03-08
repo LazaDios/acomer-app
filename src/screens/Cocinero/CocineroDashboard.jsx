@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
-import { useNavigation as _unused } from '@react-navigation/native';
+import { View, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Modal, ScrollView } from 'react-native';
+import { useNavigation as _unused, useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
-import { io } from 'socket.io-client';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles';
 
@@ -14,11 +13,19 @@ const ESTADO_ABIERTA = 'Abierta';
 const ESTADO_CANCELADA = 'Cancelada'; // El cocinero debe verlas para referencia
 
 export const CocineroDashboard = ({ navigation }) => {
-    const { userToken, API_BASE_URL, logout, userData } = useContext(AuthContext);
+    const { userToken, API_BASE_URL, logout, userData, socket } = useContext(AuthContext);
 
     const [comandas, setComandas] = useState([]);
     const [isListLoading, setIsListLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [selectedComanda, setSelectedComanda] = useState(null);
+    const isFocused = useIsFocused();
+    const isFocusedRef = React.useRef(isFocused);
+    const lastSocketFetchRef = React.useRef(0);
+
+    useEffect(() => {
+        isFocusedRef.current = isFocused;
+    }, [isFocused]);
 
     const getPriority = (status) => {
         // PRIORIDAD DEL COCINERO: 
@@ -49,7 +56,21 @@ export const CocineroDashboard = ({ navigation }) => {
                 return new Date(a.fecha_hora_comanda).getTime() - new Date(b.fecha_hora_comanda).getTime();
             });
 
-            setComandas(fetchedComandas.filter(c => c.estado_comanda !== ESTADO_FINALIZADA));
+            const today = new Date().toDateString();
+
+            setComandas(fetchedComandas.filter(c => {
+                // Si la comanda está finalizada, nunca se muestra en pendientes
+                if (c.estado_comanda === ESTADO_FINALIZADA) return false;
+
+                // Si la comanda está cancelada, solo se muestra si es de hoy
+                if (c.estado_comanda === ESTADO_CANCELADA) {
+                    const comandaDate = new Date(c.fecha_hora_comanda).toDateString();
+                    return comandaDate === today;
+                }
+
+                // Para el resto (Abierta, Preparando), se muestran siempre
+                return true;
+            }));
 
         } catch (error) {
             console.error('Error al cargar comandas:', error.response?.data || error.message);
@@ -66,27 +87,38 @@ export const CocineroDashboard = ({ navigation }) => {
         return () => unsubscribeFocus();
     }, [fetchCocineroComandas, navigation]);
 
-    // Efecto 2: WebSocket estable
+    // --- REF PARA EVITAR CIERRES STALE EN SOCKETS ---
+    const fetchRef = React.useRef(fetchCocineroComandas);
     useEffect(() => {
-        const socketUrl = API_BASE_URL.replace('/api/v1', '');
-        const socket = io(socketUrl, {
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionDelay: 2000,
-            reconnectionAttempts: 5,
-        });
+        fetchRef.current = fetchCocineroComandas;
+    }, [fetchCocineroComandas]);
 
-        socket.on('connect', () => console.log('✅ WS conectado en CocineroDashboard'));
-        socket.on('comandaUpdated', () => fetchCocineroComandas(true));
-        socket.on('comandaToKitchen', () => fetchCocineroComandas(true));
-        socket.on('comandaCanceladaToKitchen', () => fetchCocineroComandas(true));
-        socket.on('connect_error', (err) => console.warn('⚠️ WS error Cocinero:', err.message));
+    // Efecto 2: WebSocket compartido global
+    useEffect(() => {
+        if (!socket) return;
+
+        console.log('🔗 Suscribiendo listeners Cocinero (Socket Global)...');
+
+        const updateListener = () => {
+            if (!isFocusedRef.current) return;
+            const now = Date.now();
+            if (now - lastSocketFetchRef.current > 5000) {
+                lastSocketFetchRef.current = now;
+                if (fetchRef.current) fetchRef.current(true);
+            }
+        };
+
+        socket.on('comandaUpdated', updateListener);
+        socket.on('comandaToKitchen', updateListener);
+        socket.on('comandaCanceladaToKitchen', updateListener);
 
         return () => {
-            socket.disconnect();
-            console.log('🔌 WS desconectado en CocineroDashboard');
+            console.log('❌ Quitantolisteners Cocinero');
+            socket.off('comandaUpdated', updateListener);
+            socket.off('comandaToKitchen', updateListener);
+            socket.off('comandaCanceladaToKitchen', updateListener);
         };
-    }, [API_BASE_URL]);
+    }, [socket]);
 
 
     // Función para cambiar el estado de la comanda
@@ -101,6 +133,7 @@ export const CocineroDashboard = ({ navigation }) => {
             });
 
             Alert.alert('Éxito', successMessage);
+            setSelectedComanda(null); // Cerrar modal al actualizar
             fetchCocineroComandas();
         } catch (error) {
             console.error(errorMessage, error.response?.data || error.message);
@@ -156,63 +189,31 @@ export const CocineroDashboard = ({ navigation }) => {
         </View>
     );
 
-    const renderComanda = ({ item }) => (
-        <View style={[
-            styles.orderCard,
-            { borderColor: getStatusColor(item.estado_comanda), borderWidth: 2, paddingBottom: 10 }
-        ]}>
+    const renderComanda = useCallback(({ item }) => (
+        <TouchableOpacity
+            style={[
+                styles.orderCard,
+                { borderColor: getStatusColor(item.estado_comanda), borderWidth: 2, paddingBottom: 15 }
+            ]}
+            onPress={() => setSelectedComanda(item)}
+        >
             <View style={styles.orderHeader}>
-                <Text style={[styles.orderTitle, { color: getStatusColor(item.estado_comanda) }]}>
-                    {item.mesa} (ID: {item.comanda_id})
+                <Text style={[styles.orderTitle, { color: getStatusColor(item.estado_comanda), fontSize: 22, fontWeight: 'bold' }]}>
+                    Mesa {item.mesa}
                 </Text>
                 <View style={[styles.orderStatusPill, { backgroundColor: getStatusColor(item.estado_comanda) }]}>
                     <Text style={styles.orderStatusText}>{item.estado_comanda.toUpperCase()}</Text>
                 </View>
             </View>
 
-            <Text style={styles.orderDetailText}>Mesonero: {item.nombre_mesonero || 'N/A'}</Text>
-            <Text style={styles.orderDetailText}>Hora: {new Date(item.fecha_hora_comanda).toLocaleTimeString()}</Text>
+            <Text style={[styles.orderDetailText, { fontSize: 16, marginTop: 5 }]}>👤 Mesonero: {item.nombre_mesonero || 'N/A'}</Text>
+            <Text style={[styles.orderDetailText, { fontSize: 16 }]}>🕒 Hora: {new Date(item.fecha_hora_comanda).toLocaleTimeString()}</Text>
 
-            {/* DETALLES DE PRODUCTOS (DetallesComanda) */}
-            <View style={styles.sectionSeparator}>
-                <Text style={styles.sectionTitleOperative}>PEDIDO:</Text>
-            </View>
-            {item.detallesComanda.map(renderDetailItem)}
-
-            {/* Motivo de Cancelación (solo si existe) */}
-            {item.motivo_cancelacion && (
-                <View style={{ marginTop: 8, backgroundColor: '#fff3cd', borderRadius: 6, padding: 8, borderLeftWidth: 3, borderLeftColor: '#dc3545' }}>
-                    <Text style={{ fontSize: 12, color: '#856404', fontWeight: 'bold' }}>⚠️ Motivo de cancelación:</Text>
-                    <Text style={{ fontSize: 13, color: '#664d03', marginTop: 2 }}>{item.motivo_cancelacion}</Text>
-                </View>
-            )}
-
-            {/* ACCIONES DEL COCINERO */}
-            <View style={styles.orderActions}>
-                {/* 1. Botón INICIAR PREPARACIÓN (Solo visible si está ABIERTA) */}
-                {item.estado_comanda === ESTADO_ABIERTA && (
-                    <TouchableOpacity
-                        style={[styles.smallButton, { backgroundColor: '#007bff' }]}
-                        onPress={() => handleStartPreparation(item.comanda_id)}
-                        disabled={isUpdating}
-                    >
-                        <Text style={styles.smallButtonText}>INICIAR PREPARACIÓN</Text>
-                    </TouchableOpacity>
-                )}
-
-                {/* 2. Botón MARCAR LISTO (Solo visible si está PREPARANDO) */}
-                {item.estado_comanda === ESTADO_PREPARANDO && (
-                    <TouchableOpacity
-                        style={[styles.smallButton, { backgroundColor: '#28a745' }]}
-                        onPress={() => handleMarkReady(item.comanda_id)}
-                        disabled={isUpdating}
-                    >
-                        <Text style={styles.smallButtonText}>MARCAR LISTO ✅</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
-        </View>
-    );
+            <Text style={{ textAlign: 'center', color: '#007bff', marginTop: 12, fontWeight: 'bold' }}>
+                👉 TOCA PARA VER DETALLES ({item.detallesComanda?.length || 0} artículos)
+            </Text>
+        </TouchableOpacity>
+    ), [getStatusColor]);
 
     return (
         <View style={styles.dashboardContainer}>
@@ -248,7 +249,63 @@ export const CocineroDashboard = ({ navigation }) => {
                             colors={['#dc3545']}
                         />
                     }
+                    // OPTIMIZACIONES EXTREMAS (Evitan cierres por memoria gráfica)
+                    removeClippedSubviews={true}
+                    initialNumToRender={3}
+                    maxToRenderPerBatch={2}
+                    windowSize={3}
                 />
+            )}
+
+            {/* MODAL DETALLES DE LA COMANDA */}
+            {selectedComanda && (
+                <Modal animationType="slide" transparent={true} visible={!!selectedComanda} onRequestClose={() => setSelectedComanda(null)}>
+                    <View style={styles.centeredView}>
+                        <View style={[styles.modalView, { width: '90%', maxHeight: '80%', padding: 15 }]}>
+                            <Text style={[styles.modalTitle, { color: getStatusColor(selectedComanda.estado_comanda), marginBottom: 15 }]}>
+                                Mesa {selectedComanda.mesa} - Detalles
+                            </Text>
+
+                            <ScrollView style={{ width: '100%', marginBottom: 15 }}>
+                                {(selectedComanda.detallesComanda || []).map(renderDetailItem)}
+
+                                {selectedComanda.motivo_cancelacion && (
+                                    <View style={{ marginTop: 8, backgroundColor: '#fff3cd', borderRadius: 6, padding: 8, borderLeftWidth: 3, borderLeftColor: '#dc3545' }}>
+                                        <Text style={{ fontSize: 12, color: '#856404', fontWeight: 'bold' }}>⚠️ Motivo de cancelación:</Text>
+                                        <Text style={{ fontSize: 13, color: '#664d03', marginTop: 2 }}>{selectedComanda.motivo_cancelacion}</Text>
+                                    </View>
+                                )}
+                            </ScrollView>
+
+                            {/* ACCIONES DEL COCINERO EN EL MODAL */}
+                            <View style={{ width: '100%' }}>
+                                {selectedComanda.estado_comanda === ESTADO_ABIERTA && (
+                                    <TouchableOpacity
+                                        style={[styles.button, { backgroundColor: '#007bff', marginBottom: 10 }]}
+                                        onPress={() => handleStartPreparation(selectedComanda.comanda_id)}
+                                        disabled={isUpdating}
+                                    >
+                                        <Text style={styles.buttonText}>INICIAR PREPARACIÓN</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                {selectedComanda.estado_comanda === ESTADO_PREPARANDO && (
+                                    <TouchableOpacity
+                                        style={[styles.button, { backgroundColor: '#28a745', marginBottom: 10 }]}
+                                        onPress={() => handleMarkReady(selectedComanda.comanda_id)}
+                                        disabled={isUpdating}
+                                    >
+                                        <Text style={styles.buttonText}>MARCAR LISTO ✅</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity style={[styles.button, { backgroundColor: '#6c757d' }]} onPress={() => setSelectedComanda(null)}>
+                                    <Text style={styles.buttonText}>CERRAR PANTALLA</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             )}
 
             {/* BOTÓN CERRAR SESIÓN */}

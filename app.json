@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -21,22 +21,20 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.lazarodios.acomerapp",
-      "usesCleartextTraffic": true
+      "package": "com.lazarodios.acomerapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "extra": {
       "eas": {
-        "projectId": "3e0e3895-dac4-4e17-900a-687c8824b226"
+        "projectId": "3072c682-86a6-4f39-82c2-bcfff11bc400"
       }
-    },
-    "owner": "lazarodios"
+    }
   }
 }

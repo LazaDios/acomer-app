@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
-import { io } from 'socket.io-client';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles as appStyles } from '../../styles/AppStyles'; // Usamos un alias para los estilos globales
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -27,16 +26,20 @@ const safeDate = (dateInput) => {
 
 // Helper para forzar hora Venezuela (UTC-4)
 const formatVenezuelaTime = (dateInput) => {
-    const date = safeDate(dateInput);
-    // Construimos la fecha manualmente usando los componentes LOCALES
-    // Esto respetará la hora que ya viene "lista" de la BD
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
+    try {
+        const date = safeDate(dateInput);
+        if (!date || isNaN(date.getTime())) return 'Fecha inválida';
 
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+    } catch (e) {
+        return 'Error fecha';
+    }
 };
 
 // Estados sincronizados con la capitalización del backend
@@ -55,15 +58,63 @@ const OrderAuditScreen = ({ navigation }) => {
 
     const [selectedStatus, setSelectedStatus] = useState('TODAS');
 
-    // Rango de fechas por defecto: últimos 30 días
-    const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+    // Rango de fechas por defecto: día actual
+    const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState(new Date());
 
     const [totalSales, setTotalSales] = useState(0);
     const [topProducts, setTopProducts] = useState([]); // Estado para Top Productos
     const isFocused = useIsFocused();
+    const isFocusedRef = React.useRef(isFocused);
+    const lastSocketFetchRef = React.useRef(0);
 
-    const { userToken, API_BASE_URL, userName, userRole } = useContext(AuthContext);
+    useEffect(() => {
+        isFocusedRef.current = isFocused;
+    }, [isFocused]);
+
+    const { userToken, API_BASE_URL, userName, userRole, socket } = useContext(AuthContext);
+
+    // --- REF PARA EVITAR CIERRES STALE EN SOCKETS ---
+    const fetchRef = React.useRef();
+    useEffect(() => {
+        fetchRef.current = fetchAllComandas;
+    });
+
+    // --- EFFECT: Sockets Globales (Reutilizando conexión de AuthContext) ---
+    useEffect(() => {
+        if (!socket) {
+            console.log('⏳ Esperando al Socket Global en OrderAuditScreen...');
+            return;
+        }
+
+        console.log('🔗 Suscribiendo listeners en OrderAuditScreen...');
+
+        const updateListener = () => {
+            if (!isFocusedRef.current) return;
+
+            const now = Date.now();
+            if (now - lastSocketFetchRef.current > 5000) { // Throttle de 5s para máxima estabilidad
+                lastSocketFetchRef.current = now;
+                if (fetchRef.current) fetchRef.current(true);
+            }
+        };
+
+        // Escuchar cambios relevantes
+        socket.on('comandaUpdated', updateListener);
+        socket.on('comandaToKitchen', updateListener);
+        socket.on('comandaToWaiter', updateListener);
+        socket.on('comandaCanceladaToKitchen', updateListener);
+        socket.on('comandaCanceladaToWaiter', updateListener);
+
+        return () => {
+            console.log('❌ Eliminando listeners en OrderAuditScreen');
+            socket.off('comandaUpdated', updateListener);
+            socket.off('comandaToKitchen', updateListener);
+            socket.off('comandaToWaiter', updateListener);
+            socket.off('comandaCanceladaToKitchen', updateListener);
+            socket.off('comandaCanceladaToWaiter', updateListener);
+        };
+    }, [socket]);
 
     // --- EFFECT: Calcular Top Productos ---
     useEffect(() => {
@@ -101,20 +152,40 @@ const OrderAuditScreen = ({ navigation }) => {
 
 
     // --- FUNCIÓN DE CARGA DE DATOS ---
-    const fetchAllComandas = async () => {
-        // NO se llama setIsLoading(true) para que el polling sea silencioso
+    const fetchAllComandas = async (silent = false) => {
+        const diffTime = Math.abs(new Date() - startDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 7;
+
+        if (!silent) setIsLoading(true);
         try {
-            const response = await axios.get(`${API_BASE_URL}/comandas/`, {
+            const response = await axios.get(`${API_BASE_URL}/comandas/?days=${diffDays}`, {
                 headers: { Authorization: `Bearer ${userToken}` },
             });
             setAllComandas(response.data);
         } catch (error) {
             console.error('Error al cargar comandas:', error);
         } finally {
-            // Solo para la primera carga, se pasa a false, permitiendo el renderizado principal
-            if (isLoading) setIsLoading(false);
+            setIsLoading(false);
         }
     };
+
+    // Efecto 1: carga inicial + focus
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadInit = async () => {
+            if (isMounted) await fetchAllComandas(true);
+        };
+
+        loadInit();
+        const unsubscribeFocus = navigation.addListener('focus', loadInit);
+
+        return () => {
+            isMounted = false;
+            unsubscribeFocus();
+        };
+    }, [navigation, userToken, API_BASE_URL, startDate, endDate]);
+
 
     // --- LÓGICA DE FILTRADO Y CÁLCULO ---
     const filterAndCalculateTotals = (comandas, status, start, end) => {
@@ -286,46 +357,12 @@ const OrderAuditScreen = ({ navigation }) => {
     };
 
     // --- LÓGICA DE USE EFFECT ---
-    // Efecto 1: carga inicial + focus
-    useEffect(() => {
-        fetchAllComandas();
-        const unsubscribeFocus = navigation.addListener('focus', fetchAllComandas);
-        return () => unsubscribeFocus();
-    }, [navigation, userToken, API_BASE_URL]);
-
-    // Efecto 2: WebSocket estable (no depende de estados volátiles)
-    useEffect(() => {
-        const socketUrl = API_BASE_URL.replace('/api/v1', '');
-        const socket = io(socketUrl, {
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionDelay: 2000,
-            reconnectionAttempts: 5,
-        });
-
-        socket.on('connect', () => console.log('✅ WS conectado en OrderAuditScreen'));
-        socket.on('comandaUpdated', fetchAllComandas);
-        socket.on('comandaToKitchen', fetchAllComandas);
-        socket.on('comandaToWaiter', fetchAllComandas);
-        socket.on('comandaCanceladaToKitchen', fetchAllComandas);
-        socket.on('comandaCanceladaToWaiter', fetchAllComandas);
-        socket.on('connect_error', (err) => console.warn('⚠️ WS error Admin:', err.message));
-
-        return () => {
-            socket.disconnect();
-            console.log('🔌 WS desconectado en OrderAuditScreen');
-        };
-    }, [API_BASE_URL]);
-
     // useEffect para FILTRADO y CÁLCULO
     useEffect(() => {
-        if (allComandas.length === 0 && !isLoading) {
-            setFilteredComandas([]);
-            setTotalSales(0);
-            return;
-        }
         filterAndCalculateTotals(allComandas, selectedStatus, startDate, endDate);
-    }, [allComandas, selectedStatus, startDate, endDate, userName]);
+        // Deshabilitar warnings de dependencia si sabemos que filterAndCalculateTotals es seguro
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allComandas, selectedStatus, startDate, endDate, userName, userRole]);
 
 
     // --- LÓGICA DE DATE PICKER ---
@@ -362,7 +399,7 @@ const OrderAuditScreen = ({ navigation }) => {
         }
     };
 
-    const renderComanda = ({ item }) => (
+    const renderComanda = useCallback(({ item }) => (
         <TouchableOpacity
             style={appStyles.orderCard}
             onPress={() => handleViewDetails(item.comanda_id)}
@@ -386,16 +423,16 @@ const OrderAuditScreen = ({ navigation }) => {
 
             {/* --- DETALLE DE PRODUCTOS --- */}
             <View style={appStyles.orderDetailList}>
-                <Text style={[appStyles.summaryLabel, { fontSize: 13, marginBottom: 5, color: '#333' }]}>Productos ({item.detallesComanda?.length || 0}):</Text>
+                <Text style={[appStyles.summaryLabel, { fontSize: 13, marginBottom: 5, color: '#333' }]}>Productos ({(item.detallesComanda || []).length}):</Text>
 
-                {item.detallesComanda?.slice(0, 2).map((detalle, index) => ( // Solo muestra los primeros 2
+                {(item.detallesComanda || []).slice(0, 2).map((detalle, index) => (
                     <Text key={index} style={appStyles.orderItemText}>
-                        • {detalle.cantidad}x {detalle.producto.nombre_producto}
+                        • {detalle?.cantidad || 0}x {detalle?.producto?.nombre_producto || 'Producto desconocido'}
                     </Text>
                 ))}
 
-                {item.detallesComanda?.length > 2 && (
-                    <Text style={appStyles.orderItemText}>... y {item.detallesComanda.length - 2} más</Text>
+                {(item.detallesComanda || []).length > 2 && (
+                    <Text style={appStyles.orderItemText}>... y {(item.detallesComanda || []).length - 2} más</Text>
                 )}
             </View>
 
@@ -418,11 +455,11 @@ const OrderAuditScreen = ({ navigation }) => {
                 </View>
             )}
         </TouchableOpacity>
-    );
+    ), [navigation, getStatusColor]); // Dependencia mínima para evitar recreación constante
 
-    // --- RENDER HEADER (Todo lo que va arriba de la lista y debe scrollear) ---
+    // --- RENDER HEADER FIJO (Evita crashes nativos del Picker al hacer scroll o renderizar) ---
     const renderHeader = () => (
-        <View>
+        <View style={{ paddingBottom: 10 }}>
             <Text style={appStyles.dashboardTitle}>📋 Mis Comandas</Text>
 
             {/* Pequeño indicador para la primera carga si la lista está vacía */}
@@ -469,14 +506,15 @@ const OrderAuditScreen = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {isPickerVisible && (
+                {/* Renderizado condicional EXCLUSIVO para Android/iOS Picker para evitar Memory Leaks Nativos */}
+                {isPickerVisible ? (
                     <DateTimePicker
                         value={new Date()}
                         mode="date"
                         display="default"
                         onChange={handleDateChange}
                     />
-                )}
+                ) : null}
             </View>
 
             {/* METRICA + PDF: Solo para comandas Cerradas */}
@@ -506,11 +544,13 @@ const OrderAuditScreen = ({ navigation }) => {
 
     return (
         <View style={appStyles.dashboardContainer}>
+            {/* El Header FUERA del FlatList previene cierres súbitos por destrucción del Picker nativo */}
+            {renderHeader()}
+
             <FlatList
                 data={filteredComandas}
                 keyExtractor={(item) => item.comanda_id.toString()}
                 renderItem={renderComanda}
-                ListHeaderComponent={renderHeader}
                 ListEmptyComponent={
                     !isLoading ? (
                         <View style={[appStyles.emptyState, { marginTop: 50 }]}>
@@ -526,14 +566,12 @@ const OrderAuditScreen = ({ navigation }) => {
                 }
                 contentContainerStyle={{ paddingBottom: 20 }}
                 style={{ flex: 1 }}
-                // OPTIMIZACIONES DE MEMORIA
-                removeClippedSubviews={true} // Desmonta vistas fuera de pantalla (Solo Android, pero ayuda mucho)
-                initialNumToRender={10} // Renderiza solo 10 al inicio
-                maxToRenderPerBatch={10} // Carga de 10 en 10
-                windowSize={10} // Reduce el buffer de renderizado fuera de pantalla (Default es 21)
-                getItemLayout={(data, index) => (
-                    { length: 150, offset: 150 * index, index } // Asumiendo altura fija aprox de 150px
-                )}
+                // OPTIMIZACIONES EXTREMAS PARA ANDROID (Evitan cierres por memoria)
+                removeClippedSubviews={true}
+                initialNumToRender={4}
+                maxToRenderPerBatch={2}
+                windowSize={3}
+                updateCellsBatchingPeriod={50}
             />
         </View>
     );

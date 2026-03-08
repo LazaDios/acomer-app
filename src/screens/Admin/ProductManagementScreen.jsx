@@ -12,12 +12,12 @@ import { styles } from '../../styles/AppStyles';
 // 1. FORMULARIO DE PRODUCTOS (Crear y Editar)
 // **************************************************
 export const ProductFormScreen = ({ navigation, route }) => {
-  const productToEdit = route.params?.productToEdit; 
-  
+  const productToEdit = route.params?.productToEdit;
+
   // Usamos los campos de la BD: nombre_producto y precio_producto
   const [nombre, setNombre] = useState(productToEdit?.nombre_producto || '');
   const [precio, setPrecio] = useState(productToEdit?.precio_producto?.toString() || '');
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { userToken, API_BASE_URL } = useContext(AuthContext);
 
@@ -40,11 +40,11 @@ export const ProductFormScreen = ({ navigation, route }) => {
     }
 
     setIsSubmitting(true);
-    
+
     // OBJETO DE DATOS SINCRONIZADO SOLO CON LA BD (nombre_producto, precio_producto)
-    const data = { 
-      nombre_producto: nombre, 
-      precio_producto: parsedPrecio, 
+    const data = {
+      nombre_producto: nombre,
+      precio_producto: parsedPrecio,
       // Se eliminan category y description
     };
 
@@ -62,8 +62,8 @@ export const ProductFormScreen = ({ navigation, route }) => {
         });
         Alert.alert('Éxito', `Producto '${nombre}' creado correctamente.`);
       }
-      
-      navigation.goBack(); 
+
+      navigation.goBack();
 
     } catch (error) {
       console.error('Error al guardar producto:', error);
@@ -96,11 +96,11 @@ export const ProductFormScreen = ({ navigation, route }) => {
           keyboardType="numeric"
         />
       </View>
-      
+
       {/* SE HAN ELIMINADO LOS CAMPOS DE CATEGORÍA Y DESCRIPCIÓN */}
 
-      <TouchableOpacity 
-        style={styles.button} 
+      <TouchableOpacity
+        style={styles.button}
         onPress={submitProduct}
         disabled={isSubmitting}
       >
@@ -123,8 +123,18 @@ export const ProductManagementScreen = ({ navigation }) => {
   const { userToken, API_BASE_URL } = useContext(AuthContext);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', fetchProducts);
-    return unsubscribe;
+    let isMounted = true;
+    const loadData = async () => {
+      if (isMounted) await fetchProducts();
+    };
+
+    loadData();
+    const unsubscribe = navigation.addListener('focus', loadData);
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [navigation]);
 
   const fetchProducts = async () => {
@@ -133,10 +143,9 @@ export const ProductManagementScreen = ({ navigation }) => {
       const response = await axios.get(`${API_BASE_URL}/productos`, {
         headers: { Authorization: `Bearer ${userToken}` },
       });
-      setProducts(response.data); 
+      setProducts(response.data || []);
     } catch (error) {
       console.error('Error al cargar productos:', error);
-      Alert.alert('Error', 'No se pudieron cargar los productos.');
     } finally {
       setIsLoading(false);
     }
@@ -148,16 +157,16 @@ export const ProductManagementScreen = ({ navigation }) => {
       `¿Estás seguro de que quieres eliminar el producto "${productName}"?`,
       [
         { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Eliminar", 
-          style: "destructive", 
+        {
+          text: "Eliminar",
+          style: "destructive",
           onPress: async () => {
             try {
               await axios.delete(`${API_BASE_URL}/productos/${productId}`, {
                 headers: { Authorization: `Bearer ${userToken}` },
               });
               Alert.alert('Éxito', 'Producto eliminado.');
-              fetchProducts(); 
+              fetchProducts();
             } catch (error) {
               console.error('Error al eliminar producto:', error);
               Alert.alert('Error', 'No se pudo eliminar el producto. Revisar permisos de API.');
@@ -167,36 +176,36 @@ export const ProductManagementScreen = ({ navigation }) => {
       ]
     );
   };
-  
-const renderProduct = ({ item }) => {
-        const price = parseFloat(item.precio_producto) || 0; 
-        
-        // Estilos de la tarjeta de producto (sin cambios)
-        return (
-            <View style={styles.productAuditCard}> 
-                <View style={styles.productAuditInfo}>
-                    <Text style={styles.productName}>{item.nombre_producto}</Text> 
-                    <Text style={styles.productDetails}>${price.toFixed(2)}</Text> 
-                </View>
-                <View style={styles.productAuditActions}>
-                    <TouchableOpacity 
-                        style={[styles.actionButton, { backgroundColor: '#007bff' }]}
-                        onPress={() => navigation.navigate('ProductForm', { productToEdit: item })}
-                    >
-                        <MaterialIcons name="edit" size={20} color="#fff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={[styles.actionButton, { backgroundColor: '#dc3545', marginLeft: 10 }]}
-                        onPress={() => deleteProduct(item.id_producto, item.nombre_producto)}
-                    >
-                        <MaterialIcons name="delete" size={20} color="#fff" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-        );
-    };
 
-    if (isLoading) {
+  const renderProduct = ({ item }) => {
+    const price = parseFloat(item.precio_producto) || 0;
+
+    // Estilos de la tarjeta de producto (sin cambios)
+    return (
+      <View style={styles.productAuditCard}>
+        <View style={styles.productAuditInfo}>
+          <Text style={styles.productName}>{item.nombre_producto}</Text>
+          <Text style={styles.productDetails}>${price.toFixed(2)}</Text>
+        </View>
+        <View style={styles.productAuditActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#007bff' }]}
+            onPress={() => navigation.navigate('ProductForm', { productToEdit: item })}
+          >
+            <MaterialIcons name="edit" size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#dc3545', marginLeft: 10 }]}
+            onPress={() => deleteProduct(item.id_producto, item.nombre_producto)}
+          >
+            <MaterialIcons name="delete" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007bff" />
@@ -205,41 +214,42 @@ const renderProduct = ({ item }) => {
     );
   }
 
-return (
-        // Usamos un View simple para el fondo, y el padding horizontal
-        // se aplicará a los elementos internos
-        <View style={styles.dashboardContainer}> 
-            
-            {/* Contenedor del Botón Añadir para aplicar padding horizontal */}
-            <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-                <TouchableOpacity 
-                    // Añadimos marginVertical para separarlo de la lista/título/borde superior
-                    style={[styles.button, { backgroundColor: '#28a745', marginVertical: 10 }]} 
-                    onPress={() => navigation.navigate('ProductForm', { productToEdit: null })}
-                >
-                    <MaterialIcons name="add" size={24} color="#fff" />
-                    <Text style={[styles.buttonText, { marginLeft: 10 }]}>Añadir Nuevo Producto</Text>
-                </TouchableOpacity>
-            </View>
+  return (
+    // Usamos un View simple para el fondo, y el padding horizontal
+    // se aplicará a los elementos internos
+    <View style={styles.dashboardContainer}>
+
+      {/* Contenedor del Botón Añadir para aplicar padding horizontal */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+        <TouchableOpacity
+          // Añadimos marginVertical para separarlo de la lista/título/borde superior
+          style={[styles.button, { backgroundColor: '#28a745', marginVertical: 10 }]}
+          onPress={() => navigation.navigate('ProductForm', { productToEdit: null })}
+        >
+          <MaterialIcons name="add" size={24} color="#fff" />
+          <Text style={[styles.buttonText, { marginLeft: 10 }]}>Añadir Nuevo Producto</Text>
+        </TouchableOpacity>
+      </View>
 
 
-            {products.length === 0 ? (
-                // El estado vacío va centrado
-                <View style={styles.emptyState}> 
-                    <MaterialIcons name="inventory-2" size={50} color="#ccc" />
-                    <Text style={styles.emptyText}>No hay productos en el menú.</Text>
-                </View>
-            ) : (
-                // La FlatList ahora ocupa el resto del espacio
-                <FlatList
-                    data={products}
-                    keyExtractor={(item) => item.id_producto.toString()} 
-                    renderItem={renderProduct}
-                    // Aplicamos el padding horizontal directamente a la lista
-                    contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 20 }}
-                    style={{ flex: 1 }}
-                />
-            )}
+      {products.length === 0 ? (
+        // El estado vacío va centrado
+        <View style={styles.emptyState}>
+          <MaterialIcons name="inventory-2" size={50} color="#ccc" />
+          <Text style={styles.emptyText}>No hay productos en el menú.</Text>
         </View>
-    );
+      ) : (
+        // La FlatList ahora ocupa el resto del espacio
+        <FlatList
+          data={products}
+          keyExtractor={(item) => item.id_producto.toString()}
+          renderItem={renderProduct}
+          // Aplicamos el padding horizontal directamente a la lista
+          contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 20 }}
+          style={{ flex: 1 }}
+          removeClippedSubviews={false} // Estabilidad Android
+        />
+      )}
+    </View>
+  );
 };

@@ -5,13 +5,15 @@ import axios from 'axios';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri } from 'expo-auth-session';
+import { io } from 'socket.io-client'; // <-- AÑADIDO GANCHO GLOBAL
 
 WebBrowser.maybeCompleteAuthSession();
 
-// --- 1. CONFIGURACIÓN DE LA API ---
-// ***************************************************************
-const API_BASE_URL = 'http://192.168.1.39:3000/api/v1'; // Usa la base de tu App.js
-// ***************************************************************
+const API_BASE_URL = 'http://192.168.1.39:3000/api/v1';
+// Configuración de Axios para saltarse la advertencia de ngrok y asegurar conectividad
+axios.defaults.baseURL = API_BASE_URL;
+axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+axios.defaults.headers.common['Bypass-Tunnel-Reminder'] = 'true'; // Por si acaso usas localtunnel después
 const TOKEN_KEY = 'user_token';
 const USER_ROLE_KEY = 'user_role';
 const RESTAURANT_KEY = 'restaurant_data';
@@ -29,6 +31,7 @@ export const AuthProvider = ({ children }) => {
   const [restaurant, setRestaurant] = useState(null);
   const [userData, setUserData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [socket, setSocket] = useState(null); // <-- SOCKET GLOBAL EN ESTADO
 
   // Configuración de Google Auth (Mantenemos por si acaso, pero no se usará principalmente)
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -66,6 +69,42 @@ export const AuthProvider = ({ children }) => {
     };
     loadStorageData();
   }, []);
+
+  // --- 3. GESTIÓN DEL SOCKET GLOBAL ---
+  useEffect(() => {
+    if (userToken) {
+      const socketUrl = API_BASE_URL.replace('/api/v1', '');
+      console.log('🔌 Intentando conectar Socket Global...');
+
+      const newSocket = io(socketUrl, {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionDelay: 10000, // Más lento para estabilizar redes locales
+        reconnectionAttempts: 5,
+        timeout: 30000,
+      });
+
+      newSocket.on('connect', () => {
+        console.log('✅ Socket Global CONECTADO ID:', newSocket.id);
+      });
+
+      newSocket.on('connect_error', (err) => {
+        // Silencio en logs para no saturar el Bridge de React Native
+        // console.error('⚠️ WS Error:', err.message);
+      });
+
+      setSocket(newSocket);
+
+      return () => {
+        console.log('🔌 Desconectando Socket Global...');
+        newSocket.removeAllListeners();
+        newSocket.disconnect();
+        setSocket(null);
+      };
+    } else {
+      setSocket(null);
+    }
+  }, [userToken]);
 
   // Manejar respuesta de Google
   useEffect(() => {
@@ -241,7 +280,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ userToken, userRole, userData, restaurant, login, loginWithGoogle, registerRestaurant, logout, changeRestaurant, activateRestaurant: activateRestaurantPromise, isLoading, API_BASE_URL }}>
+    <AuthContext.Provider value={{
+      userToken, userRole, userData, restaurant, socket,
+      login, loginWithGoogle, registerRestaurant, logout,
+      changeRestaurant, activateRestaurant: activateRestaurantPromise,
+      isLoading, API_BASE_URL
+    }}>
       {children}
     </AuthContext.Provider>
   );

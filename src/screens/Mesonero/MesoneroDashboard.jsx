@@ -4,11 +4,10 @@ import {
     View, Text, FlatList, TouchableOpacity, Alert,
     ActivityIndicator, RefreshControl, Modal, TextInput
 } from 'react-native';
-import { useNavigation as _unused } from '@react-navigation/native'; // keep import to avoid breaking other things
+import { useNavigation as _unused, useIsFocused } from '@react-navigation/native'; // keep import to avoid breaking other things
 // Note: navigation comes from props
 import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
-import { io } from 'socket.io-client';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles';
 
@@ -20,12 +19,19 @@ const ESTADO_CANCELADA = 'Cancelada';
 
 export const MesoneroDashboard = ({ navigation }) => {
     // Extraemos userData para obtener el nombre
-    const { userToken, API_BASE_URL, logout, restaurant, userRole, userData } = useContext(AuthContext);
+    const { userToken, API_BASE_URL, logout, restaurant, userRole, userData, socket } = useContext(AuthContext);
 
     const [comandas, setComandas] = useState([]);
     const [tasaCambio, setTasaCambio] = useState(0); // Nuevo estado para la tasa
     const [isListLoading, setIsListLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const isFocused = useIsFocused();
+    const isFocusedRef = React.useRef(isFocused);
+    const lastSocketFetchRef = React.useRef(0);
+
+    useEffect(() => {
+        isFocusedRef.current = isFocused;
+    }, [isFocused]);
 
     // Estados Modal Cancelación
     const [modalVisible, setModalVisible] = useState(false);
@@ -97,30 +103,42 @@ export const MesoneroDashboard = ({ navigation }) => {
         return () => unsubscribeFocus();
     }, [fetchComandas, fetchTasa, navigation]);
 
-    // Efecto 2: WebSocket estable — NO depende de estados volátiles
+    // --- REF PARA EVITAR CIERRES STALE EN SOCKETS ---
+    const fetchRef = React.useRef(fetchComandas);
     useEffect(() => {
-        const socketUrl = API_BASE_URL.replace('/api/v1', '');
-        const socket = io(socketUrl, {
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionDelay: 2000,
-            reconnectionAttempts: 5,
-        });
+        fetchRef.current = fetchComandas;
+    }, [fetchComandas]);
 
-        socket.on('connect', () => console.log('✅ WS conectado en MesoneroDashboard'));
-        // Usamos silent=true para no mostrar spinner en actualizaciones en tiempo real
-        socket.on('comandaUpdated', () => fetchComandas(true));
-        socket.on('comandaToKitchen', () => fetchComandas(true));
-        socket.on('comandaToWaiter', () => fetchComandas(true));
-        socket.on('comandaCanceladaToKitchen', () => fetchComandas(true));
-        socket.on('comandaCanceladaToWaiter', () => fetchComandas(true));
-        socket.on('connect_error', (err) => console.warn('⚠️ WS error Mesonero:', err.message));
+    // Efecto 2: WebSocket compartido global
+    useEffect(() => {
+        if (!socket) return;
+
+        console.log('🔗 Suscribiendo listeners Mesonero (Socket Global)...');
+
+        const updateListener = () => {
+            if (!isFocusedRef.current) return;
+            const now = Date.now();
+            if (now - lastSocketFetchRef.current > 5000) {
+                lastSocketFetchRef.current = now;
+                if (fetchRef.current) fetchRef.current(true);
+            }
+        };
+
+        socket.on('comandaUpdated', updateListener);
+        socket.on('comandaToKitchen', updateListener);
+        socket.on('comandaToWaiter', updateListener);
+        socket.on('comandaCanceladaToKitchen', updateListener);
+        socket.on('comandaCanceladaToWaiter', updateListener);
 
         return () => {
-            socket.disconnect();
-            console.log('🔌 WS desconectado en MesoneroDashboard');
+            console.log('❌ Quitantolisteners Mesonero');
+            socket.off('comandaUpdated', updateListener);
+            socket.off('comandaToKitchen', updateListener);
+            socket.off('comandaToWaiter', updateListener);
+            socket.off('comandaCanceladaToKitchen', updateListener);
+            socket.off('comandaCanceladaToWaiter', updateListener);
         };
-    }, [API_BASE_URL]); // Solo se recrea si cambia la URL
+    }, [socket]); // Solo se recrea si cambia la URL física del backend
 
     const openCancelModal = (id) => {
         setTargetComandaId(id);
@@ -183,7 +201,7 @@ export const MesoneroDashboard = ({ navigation }) => {
         }
     };
 
-    const renderComanda = ({ item }) => {
+    const renderComanda = useCallback(({ item }) => {
         // Lógica de Propiedad Robusta: ID o Nombre Completo
         const myId = userData?.id_usuario;
         const myName = userData?.nombre_completo?.trim().toLowerCase();
@@ -284,7 +302,7 @@ export const MesoneroDashboard = ({ navigation }) => {
                 </View>
             </View >
         );
-    };
+    }, [userData, tasaCambio, isUpdating, getStatusColor, navigation]);
 
     return (
         <View style={styles.dashboardContainer}>
@@ -319,6 +337,11 @@ export const MesoneroDashboard = ({ navigation }) => {
                     contentContainerStyle={{ paddingBottom: 80 }}
                     style={{ flex: 1 }}
                     refreshControl={<RefreshControl refreshing={isListLoading} onRefresh={fetchComandas} colors={['#007bff']} />}
+                    // OPTIMIZACIONES EXTREMAS: Evitan que Android se asfixie con la GPU
+                    removeClippedSubviews={true}
+                    initialNumToRender={3}
+                    maxToRenderPerBatch={2}
+                    windowSize={3}
                 />
             )}
 

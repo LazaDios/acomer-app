@@ -33,36 +33,27 @@ export const AppNavigator = () => {
     );
   }
 
-  // Componente a renderizar basado en el rol
-  const RoleComponent = () => {
-    switch (userRole) {
-      case 'administrador':
-        return AdminNavigator;
-      case 'cocinero':
-        return CocineroNavigator;
-      case 'mesonero':
-        return MesoneroNavigator;
-      default:
-        // Si el rol no es reconocido, redirigir al login
-        return LoginScreen;
-    }
-  };
-
-  const RoleName = ROLE_SCREENS[userRole] || 'Login';
-
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {userToken ? (
-        // USUARIO AUTENTICADO: Redirige según el rol (a su respectivo Navegador)
-        <Stack.Screen
-          name={RoleName} // Usará AdminNavigator, CamareroNavigator, o MesoneroNavigator
-          component={RoleComponent()}
-        />
+        // USUARIO AUTENTICADO: Redirige según el rol
+        <>
+          {userRole === 'administrador' && (
+            <Stack.Screen name="AdminNavigator" component={AdminNavigator} />
+          )}
+          {userRole === 'cocinero' && (
+            <Stack.Screen name="CocineroNavigator" component={CocineroNavigator} />
+          )}
+          {userRole === 'mesonero' && (
+            <Stack.Screen name="MesoneroNavigator" component={MesoneroNavigator} />
+          )}
+          {!ROLE_SCREENS[userRole] && (
+            <Stack.Screen name="Login" component={LoginScreen} />
+          )}
+        </>
       ) : restaurant ? (
-        // RESTAURANTE SELECCIONADO PERO NO AUTENTICADO: Ir a Login
         <Stack.Screen name="Login" component={LoginScreen} />
       ) : (
-        // NI RESTAURANTE NI USUARIO: Ir a Welcome (Google Login)
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
       )}
     </Stack.Navigator>

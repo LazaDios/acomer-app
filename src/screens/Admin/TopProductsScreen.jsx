@@ -18,15 +18,18 @@ const TopProductsScreen = () => {
 
     const [isLoading, setIsLoading] = useState(true);
     const [topProducts, setTopProducts] = useState([]);
-    const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+    const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState(new Date());
     const [isPickerVisible, setPickerVisible] = useState(false);
     const [currentDateSetter, setCurrentDateSetter] = useState(() => setStartDate);
 
     const fetchAndCalculate = useCallback(async () => {
         setIsLoading(true);
+        const diffTime = Math.abs(new Date() - startDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 7;
+
         try {
-            const response = await axios.get(`${API_BASE_URL}/comandas/`, {
+            const response = await axios.get(`${API_BASE_URL}/comandas/?days=${diffDays}`, {
                 headers: { Authorization: `Bearer ${userToken}` },
             });
 
