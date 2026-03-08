@@ -207,7 +207,7 @@ export const CocineroDashboard = ({ navigation }) => {
             </View>
 
             <Text style={[styles.orderDetailText, { fontSize: 16, marginTop: 5 }]}>👤 Mesonero: {item.nombre_mesonero || 'N/A'}</Text>
-            <Text style={[styles.orderDetailText, { fontSize: 16 }]}>🕒 Hora: {new Date(item.fecha_hora_comanda).toLocaleTimeString()}</Text>
+            <Text style={[styles.orderDetailText, { fontSize: 16 }]}>🕒 Hora: {new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.fecha_hora_comanda))}</Text>
 
             <Text style={{ textAlign: 'center', color: '#007bff', marginTop: 12, fontWeight: 'bold' }}>
                 👉 TOCA PARA VER DETALLES ({item.detallesComanda?.length || 0} artículos)

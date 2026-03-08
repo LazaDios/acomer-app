@@ -24,19 +24,21 @@ const safeDate = (dateInput) => {
     return new Date(dateInput);
 };
 
-// Helper para forzar hora Venezuela (UTC-4)
+// Helper para mostrar fecha/hora en hora de Venezuela (America/Caracas)
 const formatVenezuelaTime = (dateInput) => {
     try {
         const date = safeDate(dateInput);
         if (!date || isNaN(date.getTime())) return 'Fecha inválida';
 
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-
-        return `${year}-${month}-${day} ${hours}:${minutes}`;
+        return new Intl.DateTimeFormat('es-VE', {
+            timeZone: 'America/Caracas',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+        }).format(date);
     } catch (e) {
         return 'Error fecha';
     }
@@ -266,14 +268,16 @@ const OrderAuditScreen = ({ navigation }) => {
 
         const closedComandas = comandas.filter(c => c.estado_comanda === 'Cerrada');
 
-        const rows = closedComandas.map(comanda => `
+        const rows = closedComandas.map(comanda => {
+            const mesoneroName = comanda.usuario?.nombre_completo || comanda.nombre_mesonero || 'N/A';
+            return `
             <tr>
                 <td>${comanda.mesa}</td>
-                <td>${comanda.nombre_mesonero || 'N/A'}</td>
+                <td>${mesoneroName}</td>
                 <td style="text-align: right;">$${parseFloat(comanda.total_comanda).toFixed(2)}</td>
                 <td>${formatVenezuelaTime(comanda.fecha_hora_comanda)}</td>
             </tr>
-        `).join('');
+        `}).join('');
 
         return `
             <!DOCTYPE html>
@@ -416,7 +420,9 @@ const OrderAuditScreen = ({ navigation }) => {
                 </View>
             </View>
 
-            <Text style={appStyles.orderDetailText}>Mesa: {item.mesa} | Mesonero: {item.nombre_mesonero || 'N/A'}</Text>
+            <Text style={appStyles.orderDetailText}>
+                Mesa: {item.mesa} | Mesonero: {item.usuario?.nombre_completo || item.nombre_mesonero || 'N/A'}
+            </Text>
             <Text style={[appStyles.orderDetailText, { marginBottom: 5 }]}>
                 Fecha: {formatVenezuelaTime(item.fecha_hora_comanda)}
             </Text>

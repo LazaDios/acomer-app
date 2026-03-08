@@ -5,6 +5,7 @@ import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import { AuthContext, AVAILABLE_ROLES } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles';
+import ErrorMessage from '../../components/ErrorMessage';
 
 
 // 1.  Define los roles con su id numérico
@@ -26,6 +27,7 @@ const UserCreationScreen = ({ route }) => {
   // Por defecto selecciona el primer rol disponible
   const [rolId, setRole] = useState(ROLES[0].id);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [globalError, setGlobalError] = useState(null);
   // Obtenemos el token del administrador y la URL base de la API
   const { userToken, API_BASE_URL } = useContext(AuthContext);
   const navigation = useNavigation();
@@ -60,23 +62,24 @@ const UserCreationScreen = ({ route }) => {
   const handleSave = async () => {
     // Validaciones
     if (!username || !nombre_completo || !rolId) {
-      Alert.alert('Error', 'Usuario, Nombre y Rol son obligatorios.');
+      setGlobalError('Los campos Usuario, Nombre y Rol son obligatorios.');
       return;
     }
     // Si es nuevo, password obligatorio. Si edita, opcional.
     if (!isEditing && !password) {
-      Alert.alert('Error', 'La contraseña es obligatoria para nuevos usuarios.');
+      setGlobalError('La contraseña es obligatoria para registrar nuevos usuarios.');
       return;
     }
 
     setIsSubmitting(true);
+    setGlobalError(null);
     try {
       if (isEditing) {
         // --- MODO EDICIÓN (PATCH) ---
         const payload = {
           username,
           nombre_completo,
-          rolId: Number(rolId)
+          rol_id: Number(rolId)
         };
         // Solo mandamos password si el usuario escribió algo
         if (password.trim() !== '') {
@@ -96,7 +99,7 @@ const UserCreationScreen = ({ route }) => {
             username,
             password,
             nombre_completo,
-            rolId: Number(rolId)
+            rol_id: Number(rolId)
           },
           {
             headers: { Authorization: `Bearer ${userToken}` },
@@ -110,12 +113,26 @@ const UserCreationScreen = ({ route }) => {
 
     } catch (error) {
       console.error('Error al guardar usuario:', error);
-      const message = error.response?.data?.message || 'Error de conexión.';
-      Alert.alert('Error', Array.isArray(message) ? message.join(', ') : message);
+      const message = error.response?.data?.message || 'Error de conexión con el servidor.';
+      setGlobalError(Array.isArray(message) ? message.join(', ') : message);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (globalError) {
+    return (
+      <ErrorMessage
+        title="Error de Usuario"
+        message={globalError}
+        onBack={() => setGlobalError(null)}
+        onRetry={() => {
+          setGlobalError(null);
+          handleSave();
+        }}
+      />
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.formContainer}>

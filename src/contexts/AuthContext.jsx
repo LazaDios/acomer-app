@@ -9,7 +9,7 @@ import { io } from 'socket.io-client'; // <-- AÑADIDO GANCHO GLOBAL
 
 WebBrowser.maybeCompleteAuthSession();
 
-const API_BASE_URL = 'http://192.168.1.39:3000/api/v1';
+const API_BASE_URL = 'https://acomer-v1.onrender.com/api/v1';
 // Configuración de Axios para saltarse la advertencia de ngrok y asegurar conectividad
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
@@ -127,7 +127,9 @@ export const AuthProvider = ({ children }) => {
       });
 
       const accessToken = response.data.access_token;
-      const role = response.data.usuario.rol;
+      // Extraer rol de forma segura (puede venir como string o como objeto {nombre: '...'})
+      const rawRole = response.data.usuario.rol;
+      const role = (typeof rawRole === 'object' ? rawRole.nombre : String(rawRole)).toLowerCase();
 
       if (accessToken && role) {
         await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
@@ -135,7 +137,7 @@ export const AuthProvider = ({ children }) => {
         await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(response.data.usuario));
 
         setUserToken(accessToken);
-        setUserRole(role);
+        setUserRole(role); // <-- ESTO DISPARARÁ LA NAVEGACIÓN
         setUserData(response.data.usuario);
         Alert.alert('Éxito', 'Inicio de sesión exitoso. Redirigiendo...');
       } else {
@@ -238,15 +240,24 @@ export const AuthProvider = ({ children }) => {
       const { restaurant, access_token, usuario } = response.data;
 
       if (restaurant) {
+        // Guardar datos del restaurante
         await SecureStore.setItemAsync(RESTAURANT_KEY, JSON.stringify(restaurant));
         setRestaurant(restaurant);
 
         // Auto-login del dueño
         if (access_token && usuario) {
+          // Extraer rol de forma segura
+          const rawRole = usuario.rol;
+          const role = (typeof rawRole === 'object' ? rawRole.nombre : String(rawRole)).toLowerCase();
+
           await SecureStore.setItemAsync(TOKEN_KEY, access_token);
-          await SecureStore.setItemAsync(USER_ROLE_KEY, usuario.rol);
+          await SecureStore.setItemAsync(USER_ROLE_KEY, role);
+          await SecureStore.setItemAsync(USER_DATA_KEY, JSON.stringify(usuario));
+
           setUserToken(access_token);
-          setUserRole(usuario.rol);
+          setUserRole(role); // <-- Dispara la navegación a AdminNavigator
+          setUserData(usuario);
+
           Alert.alert('¡Bienvenido!', `Restaurante "${restaurant.nombre}" registrado correctamente.`);
         }
       }

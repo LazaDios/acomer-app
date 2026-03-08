@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles';
+import ErrorMessage from '../../components/ErrorMessage';
 
 // NOTA: Se ha eliminado la dependencia y uso de 'Picker' y 'PRODUCT_CATEGORIES'
 // ya que la tabla de productos no gestiona la categoría.
@@ -14,11 +15,11 @@ import { styles } from '../../styles/AppStyles';
 export const ProductFormScreen = ({ navigation, route }) => {
   const productToEdit = route.params?.productToEdit;
 
-  // Usamos los campos de la BD: nombre_producto y precio_producto
   const [nombre, setNombre] = useState(productToEdit?.nombre_producto || '');
   const [precio, setPrecio] = useState(productToEdit?.precio_producto?.toString() || '');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [globalError, setGlobalError] = useState(null);
   const { userToken, API_BASE_URL } = useContext(AuthContext);
 
   useEffect(() => {
@@ -29,17 +30,18 @@ export const ProductFormScreen = ({ navigation, route }) => {
 
   const submitProduct = async () => {
     if (!nombre || !precio) {
-      Alert.alert('Error', 'Nombre y precio son obligatorios.');
+      setGlobalError('Nombre y precio del producto son obligatorios.');
       return;
     }
 
     const parsedPrecio = parseFloat(precio);
     if (isNaN(parsedPrecio) || parsedPrecio <= 0) {
-      Alert.alert('Error', 'El precio debe ser un número positivo.');
+      setGlobalError('El precio debe ser un número positivo (ej: 5.50).');
       return;
     }
 
     setIsSubmitting(true);
+    setGlobalError(null);
 
     // OBJETO DE DATOS SINCRONIZADO SOLO CON LA BD (nombre_producto, precio_producto)
     const data = {
@@ -54,13 +56,13 @@ export const ProductFormScreen = ({ navigation, route }) => {
         await axios.patch(`${API_BASE_URL}/productos/${productToEdit.id_producto}`, data, {
           headers: { Authorization: `Bearer ${userToken}` },
         });
-        Alert.alert('Éxito', `Producto '${nombre}' actualizado.`);
+        Alert.alert('Éxito', `Producto '${nombre}' actualizado correctamente.`);
       } else {
         // POST /productos
         await axios.post(`${API_BASE_URL}/productos`, data, {
           headers: { Authorization: `Bearer ${userToken}` },
         });
-        Alert.alert('Éxito', `Producto '${nombre}' creado correctamente.`);
+        Alert.alert('Éxito', `Producto '${nombre}' registrado.`);
       }
 
       navigation.goBack();
@@ -68,11 +70,25 @@ export const ProductFormScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error('Error al guardar producto:', error);
       const message = error.response?.data?.message || 'Error de conexión o datos inválidos.';
-      Alert.alert('Error', Array.isArray(message) ? message.join(', ') : message);
+      setGlobalError(Array.isArray(message) ? message.join(', ') : message);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (globalError) {
+    return (
+      <ErrorMessage
+        title="Error en Producto"
+        message={globalError}
+        onBack={() => setGlobalError(null)}
+        onRetry={() => {
+          setGlobalError(null);
+          submitProduct();
+        }}
+      />
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.formContainer}>

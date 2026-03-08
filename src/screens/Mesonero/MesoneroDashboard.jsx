@@ -230,7 +230,7 @@ export const MesoneroDashboard = ({ navigation }) => {
 
                 <View style={{ marginBottom: 5 }}>
                     <Text style={[styles.orderDetailText, { color: '#666', fontStyle: 'italic' }]}>
-                        👤 Mesonero: {item.nombre_mesonero || 'N/A'}
+                        👤 Mesonero: {item.usuario?.nombre_completo || item.nombre_mesonero || 'N/A'}
                     </Text>
                 </View>
 

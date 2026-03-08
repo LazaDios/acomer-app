@@ -2,8 +2,8 @@ import axios from 'axios';
 import { Alert } from 'react-native';
 
 // TODO: Replace with your actual backend URL
-// For Android Emulator use 10.0.2.2, for physical device use your IP
-const API_URL = 'http://192.168.1.39:3000/auth';
+// For Android Emulator use 10.0.2.2, for physical device use your IP 
+const API_URL = 'https://acomer-v1.onrender.com/api/v1/auth';
 
 // Asegurar headers para ngrok en todas las peticiones de este archivo si es necesario
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';

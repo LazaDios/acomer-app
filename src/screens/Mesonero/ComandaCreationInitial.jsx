@@ -4,11 +4,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AuthContext } from '../../contexts/AuthContext';
 import { styles } from '../../styles/AppStyles';
+import ErrorMessage from '../../components/ErrorMessage';
 
 export const ComandaCreationInitial = ({ navigation }) => {
     const { userToken, API_BASE_URL } = useContext(AuthContext);
     const [mesa, setMesa] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [globalError, setGlobalError] = useState(null);
 
     const handleCreateComanda = async () => {
         if (!mesa.trim()) {
@@ -17,6 +19,7 @@ export const ComandaCreationInitial = ({ navigation }) => {
         }
 
         setIsLoading(true);
+        setGlobalError(null);
 
         try {
             // 1. PASO 1: CREAR LA COMANDA PRINCIPAL (POST /comandas)
@@ -28,20 +31,20 @@ export const ComandaCreationInitial = ({ navigation }) => {
             const response = await axios.post(`${API_BASE_URL}/comandas`, comandaPayload, {
                 headers: { Authorization: `Bearer ${userToken}` },
             });
-            
+
             const newComandaId = response.data.comanda_id; // Obtenemos el ID de la nueva comanda
-            
+
             // Éxito en la creación de la comanda principal
             Alert.alert(
-                'Éxito', 
+                'Éxito',
                 `Comanda #${newComandaId} para la Mesa ${mesa} creada. Ahora agregue los productos.`,
                 [
                     {
                         text: 'OK',
                         // 2. REDIRIGIR AL EDITOR DE DETALLES
-                        onPress: () => navigation.replace('ComandaDetailsEditor', { 
-                            comandaId: newComandaId, 
-                            mesa: mesa 
+                        onPress: () => navigation.replace('ComandaDetailsEditor', {
+                            comandaId: newComandaId,
+                            mesa: mesa
                         }),
                     },
                 ]
@@ -49,15 +52,30 @@ export const ComandaCreationInitial = ({ navigation }) => {
 
         } catch (error) {
             console.error('Error al crear comanda inicial:', error.response?.data || error.message);
-            Alert.alert('Error', 'No se pudo crear la comanda. Intente de nuevo.');
+            const msg = error.response?.data?.message || 'No se pudo conectar con el servidor.';
+            setGlobalError(msg);
         } finally {
             setIsLoading(false);
         }
     };
 
+    if (globalError) {
+        return (
+            <ErrorMessage
+                title="Error al crear comanda"
+                message={globalError}
+                onBack={() => setGlobalError(null)}
+                onRetry={() => {
+                    setGlobalError(null);
+                    handleCreateComanda();
+                }}
+            />
+        );
+    }
+
     return (
-        <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.dashboardContainer}
         >
             <View style={{ flex: 1, padding: 20 }}>
@@ -83,8 +101,8 @@ export const ComandaCreationInitial = ({ navigation }) => {
                     <Text style={styles.summaryValueSmall}>ABIERTA (El Mesonero la abre)</Text>
                 </View>
 
-                <TouchableOpacity 
-                    style={styles.button} 
+                <TouchableOpacity
+                    style={styles.button}
                     onPress={handleCreateComanda}
                     disabled={isLoading || !mesa.trim()}
                 >
